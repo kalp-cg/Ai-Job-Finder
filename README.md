@@ -1,9 +1,9 @@
 # SARTHI — AI Career & Opportunity Navigator
 
-An inbox for paid work. SARTHI reads Hacker News hiring threads (and Reddit, with valid API keys), scores each post against your profile, and drafts a short reply. **You review and send everything by hand.**
+An inbox for paid work. SARTHI pulls internships, jobs and freelance posts from public feeds, ranks them against your profile, drafts your application, and sends it by email in one click when the post accepts email.
 
 > [!IMPORTANT]
-> **Safety Boundary:** This tool is strictly read-only. It **never** posts, comments, DMs, applies, or emails anyone automatically. All drafts are prepared for your manual review to keep your accounts secure and ensure thoughtful replies.
+> **Safety Boundary:** SARTHI never posts, comments, DMs or applies on its own. An email goes out only when you click **Send email**, after a 5-second undo window, with a daily cap (default 20) and no repeat sends to the same address for the same post. Auto-scan only reads feeds; it never sends anything.
 
 ---
 
@@ -48,11 +48,25 @@ job-assistant/
 
 ## 2. Core Modules
 
-### Module A: Internship Finder (`src/jobs/`)
-- **Collector:** Monitors public job pages across Greenhouse, Lever, Ashby, and Work at a Startup.
-- **Extractor:** Extracts role details, compensation/stipend, location, and requirements using Gemini into a validated `JobExtraction` Pydantic model.
-- **Matcher:** Scores roles (0-10) against `config/profile.yaml` skills and stipend minimums.
-- **Drafter:** Writes a concise intro note linking to relevant projects from `data/projects.md`.
+### Module A: Opportunity Feeds (`src/opportunities/`)
+Public APIs and published datasets only. Each source's terms (credit the source, link to the original, modest request rates) are respected.
+
+| Source | What it gives | Min gap between calls |
+| :--- | :--- | :--- |
+| SimplifyJobs (GitHub dataset) | ~4-5k active tech internships, mostly US | 1 h |
+| The Muse API | Internships and entry-level roles, incl. India and remote | 1 h |
+| Unstop public API | Indian internships with stipend and deadline | 1 h |
+| Remotive API | Remote dev jobs (max ~4 calls/day by their terms) | 6 h |
+| Remote OK API | Remote jobs with salary ranges | 2 h |
+| Jobicy API | Remote engineering jobs | 2 h |
+| Himalayas API | Remote jobs with location limits and salaries | 2 h |
+
+**Not included on purpose:** LinkedIn, Internshala, Naukri, Wellfound and Indeed. Their terms or robots.txt forbid automated access.
+
+- **`normalize.py`:** one shape for every posting. Parses skills (with synonyms), pay in any currency/period to monthly USD, experience asked, remote, and an application email only when the text around it is about applying (HR-accommodation and privacy addresses are ignored).
+- **`ranking.py`:** no LLM calls, so thousands of postings rank in ~50 ms. Score = 45% relevance (skill coverage + BM25), 15% pay fit, 15% location fit, 15% freshness (10-day half-life), 10% experience fit. Hard filters for kind, location, closed/expired, and unpaid when you ask for pay. Cross-source duplicates collapse.
+- **`refresh.py`:** fetches due sources, stores them, marks postings that disappear as closed, updates alerts.
+- **`mailer.py`:** sends one email via your SMTP account (Gmail App Password), with your resume attached.
 
 ### Module B: Freelance Lead Finder (`src/leads/`)
 - **Reddit Source:** Uses official **PRAW** in read-only mode to scan high-intent subreddits (`r/forhire`, `r/webdev`, `r/startups`, `r/SideProject`). Filters out `[For Hire]` and spam.
@@ -149,9 +163,8 @@ python3 main.py track --lead-id 1 --status won
 
 ## 5. Daily Routine (15 Minutes)
 
-1. **Morning Run:** Run `python3 main.py run`.
-2. **Review Digest:** Open `data/digest_<today>.md` or view the terminal output.
-3. **Inspect Top 5 Leads:** Click the post URL to verify it's still open.
-4. **Copy & Customize Draft:** Adapt the under-100-word draft with any extra nuance.
-5. **Send by Hand:** Reply via Reddit PM/comment or client email.
-6. **Update Tracker:** Run `python3 main.py track --lead-id <ID> --status contacted`.
+1. **Open SARTHI** (`python3 main.py web`). With auto-scan on (Settings), the queue is already fresh.
+2. **Ask for what you want**, e.g. "React internship, 1 year experience, ₹15k stipend". Save it as an alert to hear about new matches.
+3. **Open a post**, read why it fits, click **Write my application**, edit it.
+4. **Send email** when the post takes email; otherwise **Copy & open** and paste into their form.
+5. **Mark applied**, then move it along (Interviewing, Offer, Rejected) as replies come in.

@@ -27,3 +27,13 @@ preferences:
   - Backend Engineer
   - AI Engineer
   availability_hours_per_week: 25
+search:
+  kinds:
+  - internship
+  locations:
+  - India
+  - Remote
+  remote_only: false
+  experience_years: 1
+  expected_monthly: 10000
+  currency: INR

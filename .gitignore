@@ -21,4 +21,6 @@ data/assistant.db
 .idea/
 .DS_Store
 *.swp
-data/last_scan.json
+data/state.json
+data/resume.pdf
+data/resume_upload.*

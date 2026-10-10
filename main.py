@@ -48,9 +48,6 @@ logging.basicConfig(
 logger = logging.getLogger("job_assistant")
 
 
-LAST_SCAN_PATH = Path(__file__).resolve().parent / "data" / "last_scan.json"
-
-
 def load_profile_skills() -> List[str]:
     """Flatten all skill groups from config/profile.yaml for relevance ranking."""
     profile_path = Path(__file__).resolve().parent / "config" / "profile.yaml"
@@ -152,6 +149,7 @@ def process_leads(use_sample: bool = False, limit_per_source: int = 15) -> int:
 
         if lead_id:
             saved_count += 1
+            post["_saved"] = True
             logger.info(f"Saved Lead #{lead_id} (Score: {score_res.score}/10): {post.get('title', '')[:50]}")
 
     logger.info(f"Finished processing leads. {saved_count} new high-fit leads saved.")
@@ -159,8 +157,9 @@ def process_leads(use_sample: bool = False, limit_per_source: int = 15) -> int:
     scan_report["checked"] = len(all_posts)
     scan_report["saved"] = saved_count
     if not use_sample:
-        LAST_SCAN_PATH.parent.mkdir(parents=True, exist_ok=True)
-        LAST_SCAN_PATH.write_text(json.dumps(scan_report, indent=2), encoding="utf-8")
+        from src.opportunities.state import record_run
+        for key, info in scan_report["sources"].items():
+            record_run(key, info["ok"], fetched=info["fetched"], new=sum(1 for p in all_posts if p.get("source") == key and p.get("_saved")), error=info["error"])
     return saved_count
 
 
@@ -235,6 +234,15 @@ def show_tracker() -> None:
     if not stats["jobs"]:
         print("  No jobs recorded yet.")
     print("---------------------------------\n")
+
+
+def refresh_feeds() -> None:
+    """Fetch internships and jobs from every public feed and print what came in."""
+    from src.opportunities.refresh import refresh_sources
+    report = refresh_sources(manual=True) or {}
+    for key, info in report.get("sources", {}).items():
+        print(f"  {key:10} " + (f"{info['fetched']} fetched, {info['new']} new" if "fetched" in info else info.get("error") or info.get("skipped", "")))
+    print(f"New postings: {report.get('new', 0)}. Open the web app (python3 main.py web) to see your ranked queue.")
 
 
 def start_web_server(host: str = "127.0.0.1", port: int = 8000):
@@ -333,8 +341,8 @@ def main():
     leads_parser.add_argument("--limit", type=int, default=15, help="Limit posts per source")
 
     # Command: jobs
-    jobs_parser = subparsers.add_parser("jobs", help="Run Internship Finder only")
-    jobs_parser.add_argument("--sample", action="store_true", default=True, help="Use sample listings")
+    jobs_parser = subparsers.add_parser("jobs", help="Fetch internships and jobs from public feeds")
+    jobs_parser.add_argument("--sample", action="store_true", help="Use the old sample listings instead of live feeds")
 
     # Command: digest
     digest_parser = subparsers.add_parser("digest", help="View current daily digest of top leads")
@@ -366,7 +374,7 @@ def main():
     elif args.command in (None, "run"):
         use_sample = getattr(args, "sample", False)
         process_leads(use_sample=use_sample)
-        process_jobs(use_sample=use_sample)
+        refresh_feeds() if not use_sample else process_jobs(use_sample=True)
         show_digest()
 
     elif args.command == "leads":
@@ -374,8 +382,7 @@ def main():
         show_digest()
 
     elif args.command == "jobs":
-        process_jobs(use_sample=args.sample)
-        show_digest()
+        refresh_feeds() if not args.sample else process_jobs(use_sample=True)
 
     elif args.command == "digest":
         show_digest(limit=args.limit)

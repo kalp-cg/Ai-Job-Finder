@@ -52,16 +52,6 @@ def is_scan_request(msg_lower: str) -> bool:
     return bool(SCAN_RE.search(msg_lower)) and len(msg_lower) < 120
 
 
-def load_last_scan() -> Optional[Dict[str, Any]]:
-    path = DATA_DIR / "last_scan.json"
-    if not path.exists():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
-
 def handle_lead_message(user_msg: str, lead: Dict[str, Any], history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
     """
     Chat about one specific lead. Returns {"reply": str, "draft": Optional[str]}.
@@ -80,16 +70,17 @@ def handle_lead_message(user_msg: str, lead: Dict[str, Any], history: Optional[L
 
 CANDIDATE: {profile.get('title', '')}; skills: {', '.join(flat_skills)}; rate ${profile.get('hourly_rate_usd', 35)}/hr; work: {profile.get('github', '')}
 
-POST ({lead.get('source', '').upper()}, {lead.get('url', '')}):
+POST ({lead.get('source_label') or lead.get('source', '').upper()}, {lead.get('url', '')}):
+{lead.get('title', '')} at {lead.get('company', '')}
 \"\"\"
-{(lead.get('raw_content') or lead.get('need') or '')[:4000]}
+{(lead.get('raw_content') or lead.get('description') or lead.get('need') or '')[:4000]}
 \"\"\"
 
-WHY IT WAS SCORED {lead.get('score')}/10: {lead.get('score_reason', '')}
+WHY IT WAS SCORED {lead.get('score')}/10: {lead.get('score_reason') or lead.get('why', '')}
 
-CURRENT DRAFT REPLY:
+CURRENT DRAFT:
 \"\"\"
-{lead.get('draft_reply', '')}
+{lead.get('draft_reply') or lead.get('draft') or ''}
 \"\"\"
 
 RECENT CONVERSATION:
@@ -100,7 +91,7 @@ USER: {user_msg}
 Respond as JSON: {{"reply": "...", "draft": null}}
 - "reply": 1-3 plain sentences answering the user. No emojis, no lists unless asked.
 - "draft": the full new draft ONLY if the user asked to write, rewrite, shorten, or change the reply; otherwise null.
-  Drafts stay under 100 words, never invent experience or links beyond the candidate info above.
+  Drafts stay under 150 words, never invent experience or links beyond the candidate info above.
 """
     raw = llm.generate_text(prompt, system_instruction="Return ONLY valid JSON. No markdown fences.")
     if not raw:
@@ -111,6 +102,51 @@ Respond as JSON: {{"reply": "...", "draft": null}}
         return {"reply": str(data.get("reply") or "").strip(), "draft": (data.get("draft") or None)}
     except Exception:
         return {"reply": raw, "draft": None}
+
+
+def draft_application_note(item: Dict[str, Any]) -> str:
+    """Short application email for an internship/job posting. Uses Gemini when available, else a plain template."""
+    profile = load_profile_data()
+    name = profile.get("name") or "there"
+    skills = profile.get("skills") or {}
+    flat_skills = [s for group in skills.values() for s in (group or [])] if isinstance(skills, dict) else list(skills)
+    matched = [s for s in item.get("skills") or [] if s.lower() in " ".join(flat_skills).lower()][:3]
+    links = "\n".join(filter(None, [profile.get("github"), profile.get("linkedin")]))
+
+    llm = get_llm_client()
+    if llm.is_available:
+        resume = load_resume_text()[:2500]
+        prompt = f"""Write a short email applying for this role.
+
+ROLE: {item.get('title')} at {item.get('company')} ({item.get('location', '')})
+POSTING:
+\"\"\"
+{(item.get('description') or '')[:3500]}
+\"\"\"
+
+CANDIDATE: {name}, {profile.get('title', '')}
+SKILLS: {', '.join(flat_skills)}
+RESUME:
+\"\"\"
+{resume}
+\"\"\"
+LINKS: {links}
+
+Rules: under 140 words; greet the team (not a made-up person); one sentence on why this role, two on the most relevant
+real experience from the resume; mention the resume is attached; end with the name and links on separate lines.
+Never invent projects, numbers, or links. No emojis. Return only the email body."""
+        text = llm.generate_text(prompt, system_instruction="You write concise, specific job application emails.", temperature=0.4)
+        if text:
+            return text.strip()
+
+    skill_line = f"I work with {', '.join(matched)}, which this role asks for. " if matched else ""
+    return (
+        f"Hi {item.get('company') or 'there'} team,\n\n"
+        f"I'm {name}, a {profile.get('title', 'developer')}, and I'd like to apply for the {item.get('title')} role. "
+        f"{skill_line}You can see my recent work at {profile.get('github', '')}.\n\n"
+        f"My resume is attached. I'm happy to do a short call or a take-home task.\n\n"
+        f"Thanks,\n{name}\n{links}"
+    )
 
 
 def get_suggested_questions() -> List[str]:
@@ -148,6 +184,10 @@ def parse_resume_file(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     # Save to data/resume.md
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     (DATA_DIR / "resume.md").write_text(text_content, encoding="utf-8")
+    for old in DATA_DIR.glob("resume_upload.*"):
+        old.unlink()
+    original_name = "resume.pdf" if lower_name.endswith(".pdf") else f"resume_upload{Path(lower_name).suffix or '.txt'}"
+    (DATA_DIR / original_name).write_bytes(file_bytes)
 
     # Use LLM to extract structured profile
     llm = get_llm_client()
@@ -300,6 +340,10 @@ Return ONLY a valid JSON object strictly matching this schema:
         },
     }
 
+    existing_search = load_profile_data().get("search")
+    if existing_search:
+        profile_yaml_content["search"] = existing_search
+
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(CONFIG_DIR / "profile.yaml", "w", encoding="utf-8") as f:
         yaml.dump(profile_yaml_content, f, sort_keys=False, default_flow_style=False)
@@ -414,12 +458,9 @@ def handle_user_message(user_msg: str, conversation_history: Optional[List[Dict[
     if is_scan_request(msg_lower):
         from main import process_leads
         saved = process_leads(use_sample=False, limit_per_source=15)
-        report = load_last_scan() or {}
-        notes = [f"{name.upper()}: {info['error']}" for name, info in report.get("sources", {}).items() if info.get("error")]
-        return (
-            f"Scan finished. Checked {report.get('checked', 0)} posts, {saved} new ones fit you."
-            + ("\n\n" + "\n".join(notes) if notes else "")
-        )
+        from src.opportunities.refresh import refresh_sources
+        report = refresh_sources(manual=True) or {}
+        return f"Scan finished. {saved} new HN/Reddit leads and {report.get('new', 0)} new internships and jobs."
 
     # Intent 4: User pastes a client post to draft a reply
     if "client says" in msg_lower or "post:" in msg_lower or "reply to this" in msg_lower or len(user_msg_clean) > 400:

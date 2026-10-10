@@ -12,7 +12,7 @@ SARTHI is an **inbox for paid work**. Every day it should let you do one loop in
 
 Everything in the UI serves that loop. If a change doesn't make the loop faster, clearer, or more trustworthy, it doesn't ship.
 
-SARTHI never posts, applies, or messages anyone. You send everything by hand.
+SARTHI never posts, applies, or messages anyone on its own. An application email goes out only when you click Send, after a 5-second undo, within a daily cap. Auto-scan only reads.
 
 ---
 
@@ -23,8 +23,9 @@ A beautiful UI on fake data feels hollow. These come before any visual rule.
 1. **No silent sample data.** Live scans never fall back to sample posts. Sample posts in the database are labelled `SAMPLE` and hidden by default.
 2. **Say what's broken.** If a source fails (for example, Reddit keys rejected), the top bar and the briefing say so in plain words.
 3. **Never claim what didn't happen.** SARTHI only says "scanned" after a scan, gives real counts, and never says it changed a setting it can't change.
-4. **Drafts only cite real work.** Proof-of-work links come from `config/profile.yaml`. No placeholder or invented links.
-5. **No fake loading copy.** Thinking states describe the real step ("Reading the post") and show elapsed time. No "Synthesizing strategic intelligence...".
+4. **Only real contact points.** An address counts as "apply here" only if the text around it is about applying; boilerplate HR, privacy and accommodation addresses never become send targets.
+5. **Drafts only cite real work.** Proof-of-work links come from `config/profile.yaml`. No placeholder or invented links.
+6. **No fake loading copy.** Thinking states describe the real step ("Reading the post") and show elapsed time. No "Synthesizing strategic intelligence...".
 
 ---
 
@@ -45,11 +46,12 @@ A beautiful UI on fake data feels hollow. These come before any visual rule.
 └────────────────────┴──────────────────────────────────────────┘
 ```
 
-- **Left, the queue:** tabs by status (New, Sent, Won, Passed), one compact row per post. Always visible.
+- **Left, the queue:** kind filter (All, Internships, Jobs, Freelance), tabs by status (New, Sent, Won, Passed), one compact row per post. Always visible.
 - **Right, the thread:** SARTHI speaks first with a short briefing built from real data. Opening a post shows its card, and the conversation below is about that post.
 - **No greeting hero, no prompt chips, no empty dashboard widgets.** If there's nothing to show, say so in one sentence and offer the next action.
 - **Inbox behaviour:** when you mark a post sent or pass on it, the next post in the tab opens.
-- **Profile is a page, not a modal:** a resume dropzone first, then fields.
+- **Profile and Settings are pages, not modals.** Profile: resume dropzone, what you're looking for, about you. Settings: auto-scan interval, sources with their last run, email setup, alerts.
+- **Search answers live in the thread:** the parsed filters as chips, ranked results as rows, and an "Alert me" action.
 
 ---
 
