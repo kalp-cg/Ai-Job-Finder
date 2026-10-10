@@ -1,118 +1,108 @@
-# 🎨 Anti-AI UI/UX Design System & Rulebook
-### *The Senior Product Designer's Standard for AI-Assisted Code*
+# SARTHI Product & Design Rules
 
-> **Purpose:** Drop this rulebook into any project as a system prompt, workspace standard (`CLAUDE.md` / `.cursorrules` / `.agents/rules/`), or team design spec. It permanently eliminates the generic "AI-slop" aesthetic and forces models to design like high-level product designers (Claude, Linear, Stripe, Raycast).
-
----
-
-## 💀 The Dead Reality of AI Design (The 5 Anti-Patterns)
-
-| What AI Generates by Default | Why AI Does It | What Senior Designers Demand |
-| :--- | :--- | :--- |
-| **1. The "Traffic Light" Color Rainbow** (Blue button, green badge, yellow warning, red tag) | **GitHub Averaging:** 80% of open-source repos use default Tailwind utility classes (`bg-blue-600`, `text-green-500`). AI regurgitates the statistical average. | **The 90 / 9 / 1 Rule:** 90% unified neutrals, 9% typographic opacity hierarchy, **<1% single signature accent color**. |
-| **2. Cold Sterile Tech Slates (`#0f172a`, `#1e293b`)** | AI defaults to cold blue-gray dark modes from generic developer dashboards. | **Intentional Color Temperature:** Warm espresso/earthen undertones (`#1b1a18`, `#22211e`) or pure obsidian (`#08090a`). |
-| **3. UI Emojis (`⚡`, `🔍`, `🚀`, `💬`, `🎯`)** | Lazy shortcut to avoid writing SVG markup. Renders like a cartoon on Windows/Linux. | **Strictly 100% Vector SVGs** (Lucide, Radix, Phosphor). Zero OS emojis in chrome, buttons, or badges. |
-| **4. The ChatGPT/Claude Hero Greeting** | Memorized training bias: "Good day, [User]" + sparkle (`✦`) + 4 prompt chips. | **Operator Workspace First:** Start immediately on domain telemetry, live queues, and high-density data. |
-| **5. Bloated Padding & Low Density** | 40px spacers to simulate minimalism without real UI structure. | **Compact Operator Density:** Tabular numbers (`JetBrains Mono`), tight 1px borders, data-rich split-pane workflows. |
+These rules describe what SARTHI is and how its interface is built. They exist so every future change, by a person or an AI agent, moves in the same direction instead of restyling the app again.
 
 ---
 
-## 🎨 Masterclass: The Senior Designer Palette Architecture
+## 1. What SARTHI is
 
-Senior product designers and design directors at Anthropic, Linear, or Stripe will **instantly reject** multi-colored dashboards. 
+SARTHI is an **inbox for paid work**. Every day it should let you do one loop in about 15 minutes:
 
-> **Core Law:** *"If everything has color, nothing has power."*
+> find posts that fit you → read why they fit → edit the draft → send it yourself → track what happened
 
-### 1. The 90 / 9 / 1 Rule
-1. **90% Neutrals (The Foundation):**
-   - Pick **one color temperature** for your neutrals (e.g. Warm Espresso or Deep Obsidian).
-   - All backgrounds, cards, borders, and modal surfaces must stay strictly inside this neutral family.
-2. **9% Informational Hierarchy via Opacity:**
-   - Do NOT use color to indicate secondary info. Use **font weight and opacity**:
-     - Primary Headings & Data: `100%` White / Warm Linen (`#F5F4EF`)
-     - Body & Descriptions: `65%` Muted (`#A8A69E`)
-     - Micro-labels & Dividers: `35–45%` Dim (`#6E6C64`)
-3. **1% Single Signature Accent:**
-   - Exactly **ONE** signature hue on the entire screen (e.g. Claude Terracotta `#D97757` or Linear Indigo `#5E6AD2`).
-   - Use it exclusively for brand identity, primary focus states, and the single most critical action.
+Everything in the UI serves that loop. If a change doesn't make the loop faster, clearer, or more trustworthy, it doesn't ship.
+
+SARTHI never posts, applies, or messages anyone. You send everything by hand.
 
 ---
 
-### 2. The Claude Editorial Palette Specification (Warm Earth & Terracotta)
+## 2. Honesty rules (most important)
 
-Used by Anthropic’s Claude.ai to create a literary, bespoke, editorial feel that avoids cold tech clichés:
+A beautiful UI on fake data feels hollow. These come before any visual rule.
 
-```css
-:root {
-  /* Warm Earthen Surfaces (90%) */
-  --bg-base: #181715;         /* Deep warm espresso canvas */
-  --bg-surface: #201f1c;      /* Navbars, sidebars, panels */
-  --bg-elevated: #282723;     /* Cards, dialogs, inputs */
-  --bg-hover: #32302b;        /* Hover & active states */
+1. **No silent sample data.** Live scans never fall back to sample posts. Sample posts in the database are labelled `SAMPLE` and hidden by default.
+2. **Say what's broken.** If a source fails (for example, Reddit keys rejected), the top bar and the briefing say so in plain words.
+3. **Never claim what didn't happen.** SARTHI only says "scanned" after a scan, gives real counts, and never says it changed a setting it can't change.
+4. **Drafts only cite real work.** Proof-of-work links come from `config/profile.yaml`. No placeholder or invented links.
+5. **No fake loading copy.** Thinking states describe the real step ("Reading the post") and show elapsed time. No "Synthesizing strategic intelligence...".
 
-  /* Structural Hairline Borders */
-  --border-subtle: #2e2c27;
-  --border-default: #3d3a34;
-  --border-focus: #d97757;
+---
 
-  /* Typography Hierarchy (9%) */
-  --text-primary: #f5f4ef;    /* 100% - Warm unbleached linen */
-  --text-secondary: #a8a69e;  /* 65%  - Muted stone */
-  --text-muted: #6e6c64;      /* 40%  - Subtle metadata */
+## 3. Layout
 
-  /* The 1% Signature Accent */
-  --accent-signature: #d97757; /* Warm Terracotta Clay */
-  --accent-signature-hover: #e28a6c;
-  --accent-signature-bg: rgba(217, 119, 87, 0.12);
-
-  /* Restrained Functional Status (Muted, Not Neon) */
-  --status-active: #34d399;   /* Muted Sage */
-  --status-active-bg: rgba(52, 211, 153, 0.10);
-  --status-value: #e5b869;    /* Muted Ochre for financial/rates */
-
-  /* Typography */
-  --font-sans: 'Inter', -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-}
+```
+┌───────────────────────────────────────────────────────────────┐
+│ SARTHI  Last scan 6m ago · Hacker News · Reddit off  [Scan] [You] │
+├────────────────────┬──────────────────────────────────────────┤
+│ New  Sent  Won  Passed │  SARTHI briefing (real counts, problems) │
+│ 8/10  Role · Company   │  Top 3 waiting posts                     │
+│ 8/10  Role · Company   │                                          │
+│                        │  -- or, with a post open --              │
+│                        │  Post card: meta, why it fits, the post, │
+│                        │  editable reply, actions                 │
+│ j/k move · / ask       │  Conversation about this post            │
+│                        │  [ Ask SARTHI ...                    ↑ ] │
+└────────────────────┴──────────────────────────────────────────┘
 ```
 
----
-
-## 🛠️ Topic-Wise Implementation Rules
-
-### Topic 1: Iconography (Zero Emojis in UI Chrome)
-- Never use emojis (`⚡`, `🔍`, `🗑️`, `⚙️`) as interface icons. Emojis render cartoonishly on Windows and inconsistently on Linux.
-- Use **Lucide SVG icons** (`<i data-lucide="..."></i>`) with:
-  - Standard size: `15px` to `18px`.
-  - Consistent stroke width: `1.75px`.
-  - Inherit color: `stroke="currentColor"`.
-
-### Topic 2: Layout (Operator Split-Pane vs. Chatbot Void)
-- When building functional tools (scrapers, trackers, admin desks, analytics), **reject the centered chat void**.
-- **Top Telemetry Bar:** Real-time counters, active sources, system pulse.
-- **Left/Center Feed (50%):** High-density list with search, filters, tabular rates, and compact tags.
-- **Right Inspector (50%):** Immediate deep-dive, editable AI outputs, 1-click clipboard actions, and status controls.
-- Chat/AI should be a command drawer or secondary console tab—never the entire screen.
-
-### Topic 3: Typography & Numbers
-- **Tabular Monospace:** Every monetary figure (`$35/hr`), score (`9.4/10`), count, and timestamp MUST use monospace (`JetBrains Mono`) with `font-variant-numeric: tabular-nums` to guarantee vertical alignment.
-- **Case & Tracking:** Use uppercase micro-headers (`letter-spacing: 0.05em; font-size: 0.68rem; font-weight: 600; color: var(--text-muted)`).
-
-### Topic 4: Micro-Interactions
-- Avoid heavy neon drop shadows or fuzzy blur glows.
-- Use hairline border brightening on hover (`border-color: var(--border-default)`).
-- Provide immediate tactile feedback on copy actions (e.g., `copy` icon turns into `check` for 2 seconds with a subtle success pill).
+- **Left, the queue:** tabs by status (New, Sent, Won, Passed), one compact row per post. Always visible.
+- **Right, the thread:** SARTHI speaks first with a short briefing built from real data. Opening a post shows its card, and the conversation below is about that post.
+- **No greeting hero, no prompt chips, no empty dashboard widgets.** If there's nothing to show, say so in one sentence and offer the next action.
+- **Inbox behaviour:** when you mark a post sent or pass on it, the next post in the tab opens.
+- **Profile is a page, not a modal:** a resume dropzone first, then fields.
 
 ---
 
-## 📋 The "Copy-Paste" Prompt for Any AI Agent
+## 4. Visual system
 
-Include this block in your prompt to enforce senior designer standards on any LLM:
+### Color: black and white, one ember accent
+
+```css
+--bg: #0b0b0c;        --surface: #111113;   --raised: #17171a;
+--line: rgba(255,255,255,.07);   --line-strong: rgba(255,255,255,.13);
+--text: #ededef;      --text-2: 64% opacity;   --text-3: 40% opacity;
+--accent: #ff5722;    /* the only saturated color */
+```
+
+- Hierarchy comes from **opacity and weight**, never from extra colors.
+- The ember accent appears in exactly four places: the SARTHI mark, the primary button, the selected-post marker, and focus/draw lines. Nowhere else.
+- No gradients, glows, glassmorphism, or traffic-light colors (green success, yellow warning, blue links).
+
+### Type
+- **Plus Jakarta Sans** for UI and reading.
+- **JetBrains Mono** with `tabular-nums` for scores, money, counts, and times.
+- Section labels are small uppercase, 40% opacity. Don't uppercase user content such as URLs or emails.
+
+### Icons
+- **Lucide only** (`<i data-lucide="...">`), 15px, stroke 1.8. **No emojis** anywhere in the UI or in SARTHI's replies.
+
+### The mark
+- The SARTHI chakra is a single flat SVG symbol (`#chakra` in `index.html`), drawn in the accent color.
+- It is still when idle and **spins only while SARTHI is working**. Motion means "something is happening", nothing else.
+
+### Motion
+- Messages rise in over 0.28s. The input draws an ember line from the centre on focus. Buttons scale to 0.98 on press.
+- `prefers-reduced-motion` turns all of it off.
+
+---
+
+## 5. How SARTHI talks
+
+- 1 to 3 sentences. First name only. No resume recitals, no numbered lists of capabilities.
+- Write to the user as "you", never "the developer" or "the candidate".
+- Always end with one concrete next step, never a menu of options.
+
+---
+
+## 6. Prompt block for AI agents
 
 ```markdown
-STRICT FRONTEND DESIGN DIRECTIVES:
-1. Zero OS emojis in interface controls, buttons, or navigation. Use Lucide SVG icons exclusively.
-2. Color Restraint (90/9/1 Rule): Reject the primary-color rainbow (blue buttons, green badges, yellow tags). Use warm espresso/linen neutrals for 99% of the UI, and exactly ONE signature accent color (Terracotta #d97757). Create contrast via font weight and opacity, not rainbow colors.
-3. No centered ChatGPT/Claude sparkle greeting heroes ("Good day Developer"). Build a dense Operator Workspace with a top telemetry bar and split-pane layout (data feed on left, inspector/action studio on right).
-4. Tabular Numbers: Use JetBrains Mono with tabular-nums for all prices, scores, and timestamps.
+SARTHI DESIGN DIRECTIVES
+1. SARTHI is an inbox for paid work: queue on the left, SARTHI thread and post card on the right. Do not build chat-first heroes, prompt chips, or dashboard widgets without real data.
+2. Honest data first: no silent sample fallbacks, surface source errors in plain words, never invent links or claim actions that didn't happen.
+3. Black and white with ONE accent (#ff5722) used only for the mark, primary button, selection, and focus. No gradients, glows, or extra colors.
+4. Lucide SVG icons only. Zero emojis in UI and in SARTHI's replies.
+5. JetBrains Mono + tabular-nums for every score, amount, count, and time.
+6. The chakra mark spins only while work is in progress.
+7. SARTHI replies in 1-3 sentences, addresses the user as "you", ends with one next step.
 ```

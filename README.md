@@ -1,6 +1,6 @@
 # SARTHI — AI Career & Opportunity Navigator
 
-An autonomous engineering copilot and navigator that monitors public developer job requests and internships across Hacker News & Reddit, scores them against your profile, and drafts tailored, high-converting replies. **You review and send everything by hand.**
+An inbox for paid work. SARTHI reads Hacker News hiring threads (and Reddit, with valid API keys), scores each post against your profile, and drafts a short reply. **You review and send everything by hand.**
 
 > [!IMPORTANT]
 > **Safety Boundary:** This tool is strictly read-only. It **never** posts, comments, DMs, applies, or emails anyone automatically. All drafts are prepared for your manual review to keep your accounts secure and ensure thoughtful replies.
@@ -56,7 +56,7 @@ job-assistant/
 
 ### Module B: Freelance Lead Finder (`src/leads/`)
 - **Reddit Source:** Uses official **PRAW** in read-only mode to scan high-intent subreddits (`r/forhire`, `r/webdev`, `r/startups`, `r/SideProject`). Filters out `[For Hire]` and spam.
-- **Hacker News Source:** Queries the official **Algolia Search API** for recent "SEEKING FREELANCER" posts.
+- **Hacker News Source:** Reads this month's "Ask HN: Who is hiring?" and "Freelancer? Seeking freelancer?" threads through the official **Algolia API**, keeps remote posts, and ranks them by overlap with your skills before any LLM call.
 - **Extractor:** Classifies whether a post is a paid work request and extracts `need`, `budget`, `timeline`, `tech`, `contact_method`, and `url`.
 - **Scorer:** Scores candidates (0 to 10) against your skills, portfolio, budget realism, and clarity. Drops any lead below 7.
 - **Drafter:** Crafts a reply strictly under 100 words following the 4-part conversion framework:
@@ -88,14 +88,14 @@ Edit `.env` and fill in:
 - `GEMINI_API_KEY`: Get a free key at [Google AI Studio](https://aistudio.google.com/app/apikey).
 - `REDDIT_CLIENT_ID` & `REDDIT_CLIENT_SECRET`: Create a free script app at [Reddit App Preferences](https://www.reddit.com/prefs/apps).
 
-*(Note: The assistant includes offline heuristic fallbacks and built-in sample datasets, so you can test and run it immediately even before adding API keys).*
+*(Note: Without a Gemini key, scoring and drafts fall back to simple rules. Sample posts are only used with `--sample`; live scans never mix them in, and the web app labels and hides any sample posts already in the database.)*
 
 ---
 
 ## 4. Interactive Interfaces & Usage Commands
 
-### Launch Claude-Style Web App (Browser UI)
-Starts the local web server with chat, profile onboarding, pre-set questions, and copyable drafts:
+### Launch the Web App
+Starts the local web app: a queue of posts by status (New, Sent, Won, Passed), each post with why it fits and an editable reply, and a conversation with SARTHI about the open post. Shortcuts: `j`/`k` move through the queue, `/` focuses the input, `Esc` returns to the overview.
 ```bash
 python3 main.py web
 ```

@@ -1,409 +1,700 @@
 /**
- * JobAI — Minimalist Conversational Client Controller
- * Obsidian Palette, Starburst Animations, AI Resume Dropzone & Dynamic Skill Tag Cloud
+ * SARTHI client.
+ * Queue of leads on the left, a thread with SARTHI on the right.
+ * Overview thread opens with a briefing; selecting a lead opens its card and a thread about that lead.
  */
 
-let allLeads = [];
-let filteredDrawerLeads = [];
-let drawerSourceFilter = 'all';
-let conversationHistory = [];
-let currentProfile = null;
-let currentSkills = [];
+const state = {
+  leads: [],
+  status: null,
+  profile: {},
+  skills: [],
+  tab: 'new',
+  showSamples: localStorage.getItem('sarthi.showSamples') === '1',
+  selectedId: null,
+  threads: { overview: [] },  // key -> [{ role: 'user'|'ai', text, draft? }]
+  scanning: false,
+  sending: false,
+};
 
-document.addEventListener('DOMContentLoaded', () => {
-  initLucide();
-  loadProfile();
-  loadLeads();
-  setupTextarea();
+const TAB_OF = { new: 'new', contacted: 'sent', replied: 'sent', won: 'won', lost: 'passed' };
+const $ = (id) => document.getElementById(id);
+
+document.addEventListener('DOMContentLoaded', async () => {
+  setupInput();
+  setupDropzone();
+  setupKeys();
+  await Promise.all([loadProfile(), loadStatus(), loadLeads()]);
+  renderAll();
+  const linked = Number((location.hash.match(/lead=(\d+)/) || [])[1]);
+  if (leadById(linked)) selectLead(linked);
+  else if (location.hash === '#profile') showProfile();
 });
 
-function initLucide() {
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
-}
+/* ---------------- Data ---------------- */
 
-// Textarea auto-height
-function setupTextarea() {
-  const textarea = document.getElementById('chat-user-input');
-  if (!textarea) return;
-
-  textarea.addEventListener('input', () => {
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px';
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    headers: options.body ? { 'Content-Type': 'application/json' } : {},
+    ...options,
   });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Request failed (${res.status})`);
+  }
+  return res.json();
 }
 
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
+async function loadLeads() {
+  const data = await api('/api/leads');
+  state.leads = (data.leads || []).sort((a, b) => a.is_sample - b.is_sample);
+}
+
+async function loadStatus() {
+  state.status = await api('/api/status').catch(() => null);
+}
+
+async function loadProfile() {
+  const data = await api('/api/profile').catch(() => ({}));
+  state.profile = data.profile || {};
+  const skills = state.profile.skills || {};
+  state.skills = Array.isArray(skills) ? [...skills] : Object.values(skills).flat().filter(Boolean);
+  if (state.profile.name) $('profile-name').textContent = state.profile.name.split(' ')[0];
+}
+
+function leadById(id) {
+  return state.leads.find((l) => l.id === id);
+}
+
+function visibleLeads(tab = state.tab) {
+  return state.leads.filter((l) => TAB_OF[l.status] === tab && (state.showSamples || !l.is_sample));
+}
+
+/* ---------------- Rendering ---------------- */
+
+function renderAll() {
+  renderSourceLine();
+  renderQueue();
+  renderStage();
+}
+
+function renderSourceLine() {
+  const scan = state.status?.last_scan;
+  const parts = [];
+  parts.push(`<span class="source">${scan ? `Last scan ${timeAgo(scan.finished_at)}` : 'No scan yet'}</span>`);
+  const sources = scan?.sources || {};
+  const names = { hn: 'Hacker News', reddit: 'Reddit' };
+  for (const key of ['hn', 'reddit']) {
+    const info = sources[key];
+    if (!info) continue;
+    const label = info.ok ? names[key] : `${names[key]} off`;
+    parts.push(`<span class="source ${info.ok ? 'ok' : 'bad'}" title="${escapeAttr(info.error || '')}"><span class="dot"></span>${label}</span>`);
+  }
+  if (state.status && !state.status.gemini) {
+    parts.push(`<span class="source bad"><span class="dot"></span>Gemini off</span>`);
+  }
+  $('source-line').innerHTML = parts.join('');
+}
+
+function renderQueue() {
+  for (const tab of ['new', 'sent', 'won', 'passed']) {
+    $(`count-${tab}`).textContent = visibleLeads(tab).length;
+  }
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === state.tab));
+
+  const list = visibleLeads();
+  const container = $('queue-list');
+
+  if (!list.length) {
+    const empty = {
+      new: 'Nothing waiting. Run a scan to check for new posts.',
+      sent: 'Replies you send show up here, so you can follow up.',
+      won: 'Work you win lands here.',
+      passed: 'Posts you pass on go here.',
+    };
+    container.innerHTML = `<div class="queue-empty">${empty[state.tab]}</div>`;
+  } else {
+    container.innerHTML = list.map((l) => `
+      <button class="lead-row ${l.id === state.selectedId ? 'selected' : ''}" data-id="${l.id}" onclick="selectLead(${l.id})">
+        <span class="lead-score">${l.score}<small>/10</small></span>
+        <span class="lead-title">${escapeHtml(l.title)}</span>
+        <span class="lead-meta">
+          ${l.is_sample ? '<span class="tag-sample">SAMPLE</span>' : ''}
+          <span>${l.source === 'hn' ? 'HN' : 'Reddit'}</span>
+          ${isKnown(l.budget) ? `<span>${escapeHtml(shorten(l.budget, 24))}</span>` : ''}
+          <span>${timeAgo(l.created_at)}</span>
+        </span>
+      </button>`).join('');
+  }
+
+  const sampleCount = state.leads.filter((l) => l.is_sample).length;
+  const toggle = $('toggle-samples');
+  toggle.hidden = sampleCount === 0;
+  toggle.textContent = state.showSamples ? `Hide ${sampleCount} sample posts` : `Show ${sampleCount} sample posts`;
+  refreshIcons();
+}
+
+function renderStage() {
+  const thread = $('thread');
+  const lead = state.selectedId ? leadById(state.selectedId) : null;
+
+  if (lead) {
+    thread.innerHTML = leadCardHtml(lead) + messagesHtml(state.threads[lead.id] || []);
+    $('context-chip').hidden = false;
+    $('context-label').textContent = lead.title;
+    $('input').placeholder = 'Ask about this post, or say "make the draft shorter"';
+    wireDraft(lead);
+  } else {
+    thread.innerHTML = messageHtml({ role: 'ai', ...briefing() }) + peekHtml() + messagesHtml(state.threads.overview);
+    $('context-chip').hidden = true;
+    $('input').placeholder = 'Ask SARTHI anything, or paste a job post';
+  }
+  refreshIcons();
+}
+
+function briefing() {
+  const real = state.leads.filter((l) => !l.is_sample);
+  const waiting = real.filter((l) => l.status === 'new');
+  const sent = real.filter((l) => TAB_OF[l.status] === 'sent').length;
+  const scan = state.status?.last_scan;
+  const lines = [];
+
+  const name = state.profile.name ? state.profile.name.split(' ')[0] : null;
+  const hello = name ? `Hey ${name}.` : 'Hey.';
+
+  if (!scan && !real.length) {
+    lines.push(`${hello} I haven't scanned yet. Hit **Scan** and I'll read this month's Hacker News hiring threads for posts that fit you.`);
+  } else if (waiting.length) {
+    const top = waiting[0];
+    const budget = isKnown(top.budget) ? `, ${top.budget}` : '';
+    lines.push(`${hello} ${waiting.length} ${waiting.length === 1 ? 'post fits' : 'posts fit'} you and ${waiting.length === 1 ? 'is' : 'are'} waiting for a reply. The strongest is **${top.title}**${budget}, scored ${top.score}/10.`);
+    lines.push('Open one to read the post and your draft.');
+  } else {
+    lines.push(`${hello} Nothing new is waiting.${sent ? ` You've sent ${sent} ${sent === 1 ? 'reply' : 'replies'} so far.` : ''} Run a scan to check for new posts.`);
+  }
+
+  const notes = [];
+  if (scan) notes.push(`Last scan ${timeAgo(scan.finished_at)}: checked ${scan.checked} posts, ${scan.saved} new ${scan.saved === 1 ? 'fit' : 'fits'}.`);
+  for (const [key, info] of Object.entries(scan?.sources || {})) {
+    if (info.error) notes.push(`${key === 'hn' ? 'Hacker News' : 'Reddit'} was skipped: ${info.error}`);
+  }
+  if (state.status && !state.status.gemini) notes.push('Gemini is not configured, so scoring and drafts use simple rules.');
+  const samples = state.leads.filter((l) => l.is_sample).length;
+  if (samples && !state.showSamples) notes.push(`${samples} sample posts from the old demo data are hidden. They aren't real.`);
+
+  return { text: lines.join('\n\n'), notes };
+}
+
+/** The top waiting leads, shown right under the briefing so the next action is one click away. */
+function peekHtml() {
+  const waiting = state.leads.filter((l) => l.status === 'new' && (state.showSamples || !l.is_sample)).slice(0, 3);
+  if (!waiting.length) return '';
+  return `<div class="peek">${waiting.map((l) => `
+    <button class="peek-row" onclick="selectLead(${l.id})">
+      <span class="lead-score">${l.score}<small>/10</small></span>
+      <span class="peek-main">
+        <span class="lead-title">${escapeHtml(l.title)}</span>
+        <span class="why">${escapeHtml(shorten(l.score_reason || l.need || '', 150))}</span>
+      </span>
+      <i data-lucide="arrow-right"></i>
+    </button>`).join('')}</div>`;
+}
+
+function leadCardHtml(l) {
+  const meta = [
+    l.source === 'hn' ? 'Hacker News' : 'Reddit',
+    `found ${timeAgo(l.created_at)}`,
+    isKnown(l.budget) ? `<b>${escapeHtml(l.budget)}</b>` : 'budget not stated',
+    isKnown(l.timeline) ? escapeHtml(l.timeline) : null,
+    `<b>${l.score}/10</b>`,
+  ].filter(Boolean);
+
+  const tech = (l.tech || []).map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join('');
+  const draft = l.draft_reply || '';
+
+  return `
+    <article class="lead-card">
+      <section>
+        <div class="card-meta">${l.is_sample ? '<span class="tag-sample">SAMPLE</span>' : ''}${meta.map((m) => `<span>${m}</span>`).join('')}</div>
+        <h2 class="card-title">${escapeHtml(l.title)}</h2>
+        ${tech ? `<div class="chips">${tech}</div>` : ''}
+      </section>
+      ${l.score_reason ? `
+      <section>
+        <span class="label">Why it fits</span>
+        <p class="why">${escapeHtml(l.score_reason)}</p>
+      </section>` : ''}
+      <section>
+        <span class="label">The post</span>
+        <div class="post-text" id="post-text">${linkify(escapeHtml(l.raw_content || l.need || ''))}</div>
+        <button class="link-btn post-toggle" onclick="togglePost(this)">Show full post</button>
+        ${isKnown(l.contact_method) ? `<p class="contact"><span>How to reach them</span>${linkify(escapeHtml(l.contact_method))}</p>` : ''}
+      </section>
+      <section>
+        <div class="draft-head">
+          <span class="label">Your reply</span>
+          <span class="num" id="draft-count">${wordCount(draft)} words</span>
+        </div>
+        <textarea class="draft" id="draft" spellcheck="true">${escapeHtml(draft)}</textarea>
+      </section>
+      <section class="card-actions">${actionsHtml(l)}<span class="spacer"></span><span class="hint" id="card-hint"></span></section>
+    </article>`;
+}
+
+function actionsHtml(l) {
+  const open = l.is_sample
+    ? `<button class="btn btn-primary" onclick="copyDraft()"><i data-lucide="copy"></i>Copy reply</button>`
+    : `<button class="btn btn-primary" onclick="copyAndOpen()"><i data-lucide="send"></i>Copy reply &amp; open post</button>`;
+  const btn = (status, icon, label) =>
+    `<button class="btn btn-quiet" onclick="setStatus('${status}')"><i data-lucide="${icon}"></i>${label}</button>`;
+
+  switch (l.status) {
+    case 'new': return open + btn('contacted', 'check', 'Mark sent') + btn('lost', 'x', 'Pass');
+    case 'contacted': return open + btn('replied', 'message-square', 'They replied') + btn('lost', 'x', 'No luck');
+    case 'replied': return btn('won', 'trophy', 'Won it') + btn('lost', 'x', 'Lost it');
+    default: return btn('new', 'rotate-ccw', 'Move back to New');
   }
 }
 
-// Profile management
-async function loadProfile() {
+function messagesHtml(list) {
+  return list.map(messageHtml).join('');
+}
+
+function messageHtml(m) {
+  if (m.role === 'user') {
+    return `<div class="msg user"><div class="body">${renderText(m.text)}</div></div>`;
+  }
+  const suggestion = m.draft ? `
+    <div class="suggestion">${escapeHtml(m.draft)}</div>
+    <div class="inline-actions">
+      <button class="btn btn-quiet" onclick="useDraft(this)" data-draft="${escapeAttr(m.draft)}"><i data-lucide="check"></i>Use this reply</button>
+    </div>` : '';
+  return `
+    <div class="msg ai" ${m.id ? `id="${m.id}"` : ''}>
+      <div class="avatar"><svg class="chakra ${m.thinking ? 'spinning' : ''}"><use href="#chakra" /></svg></div>
+      <div class="body">${m.thinking ? `<span class="thinking">${escapeHtml(m.text)}<span class="num" data-elapsed></span></span>` : renderText(m.text)}${notesHtml(m.notes)}${suggestion}</div>
+    </div>`;
+}
+
+/* ---------------- Lead actions ---------------- */
+
+function selectLead(id) {
+  closeProfile(false);
+  state.selectedId = id;
+  history.replaceState(null, '', `#lead=${id}`);
+  renderQueue();
+  renderStage();
+  $('thread').scrollTop = 0;
+  document.querySelector(`.lead-row[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+
+function showOverview() {
+  state.selectedId = null;
+  history.replaceState(null, '', location.pathname);
+  renderQueue();
+  renderStage();
+}
+
+function setTab(tab) {
+  state.tab = tab;
+  renderQueue();
+}
+
+function toggleSamples() {
+  state.showSamples = !state.showSamples;
+  localStorage.setItem('sarthi.showSamples', state.showSamples ? '1' : '0');
+  const selected = leadById(state.selectedId);
+  if (selected?.is_sample && !state.showSamples) state.selectedId = null;
+  renderQueue();
+  renderStage();
+}
+
+function togglePost(btn) {
+  const el = $('post-text');
+  el.classList.toggle('expanded');
+  btn.textContent = el.classList.contains('expanded') ? 'Show less' : 'Show full post';
+}
+
+function wireDraft(lead) {
+  const box = $('draft');
+  if (!box) return;
+  autosize(box);
+  box.addEventListener('input', () => {
+    autosize(box);
+    const n = wordCount(box.value);
+    const count = $('draft-count');
+    count.textContent = `${n} words`;
+    count.classList.toggle('over', n > 100);
+  });
+  box.addEventListener('blur', () => saveDraft(lead, box.value));
+}
+
+async function saveDraft(lead, text) {
+  if (text === (lead.draft_reply || '')) return;
   try {
-    const res = await fetch('/api/profile');
-    const data = await res.json();
-    currentProfile = data.profile || {};
+    await api(`/api/leads/${lead.id}/draft`, { method: 'PUT', body: JSON.stringify({ draft: text }) });
+    lead.draft_reply = text;
+    hint('Saved');
+  } catch (err) {
+    hint(`Couldn't save: ${err.message}`);
+  }
+}
 
-    const nameBtn = document.getElementById('user-display-name');
-    if (nameBtn && currentProfile.name) {
-      nameBtn.textContent = currentProfile.name;
-    }
+async function copyDraft() {
+  const text = $('draft')?.value || '';
+  await navigator.clipboard.writeText(text);
+  hint('Reply copied');
+}
 
-    if (currentProfile.name) document.getElementById('onboard-name').value = currentProfile.name;
-    if (currentProfile.hourly_rate_usd) document.getElementById('onboard-rate').value = currentProfile.hourly_rate_usd;
-    if (currentProfile.github) document.getElementById('onboard-github').value = currentProfile.github;
-    if (currentProfile.linkedin) document.getElementById('onboard-linkedin').value = currentProfile.linkedin;
+async function copyAndOpen() {
+  const lead = leadById(state.selectedId);
+  if (!lead) return;
+  await copyDraft();
+  window.open(lead.url, '_blank', 'noopener');
+  hint('Copied. Paste it in the post, then mark it sent.');
+}
 
-    // Load skills
-    const primarySkills = currentProfile.skills?.primary || [];
-    currentSkills = primarySkills.length > 0 ? [...primarySkills] : ["Python", "FastAPI", "Next.js", "PostgreSQL"];
-    renderSkillsTags();
+async function setStatus(status) {
+  const lead = leadById(state.selectedId);
+  if (!lead) return;
+  await saveDraft(lead, $('draft')?.value ?? lead.draft_reply);
+  try {
+    await api(`/api/leads/${lead.id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+  } catch (err) {
+    hint(err.message);
+    return;
+  }
 
-    if (currentProfile.summary) {
-      document.getElementById('onboard-resume').value = currentProfile.summary;
-    }
+  // Inbox behaviour: when a lead leaves the current tab, move to the next one in it.
+  const before = visibleLeads();
+  const idx = before.findIndex((l) => l.id === lead.id);
+  lead.status = status;
+  const after = visibleLeads();
+  if (TAB_OF[status] !== state.tab) {
+    const next = after[Math.min(idx, after.length - 1)];
+    state.selectedId = next ? next.id : null;
+  }
+  renderQueue();
+  renderStage();
+}
 
-    // Dynamic Calibration Parameters Dashboard in Hero
-    const valResume = document.getElementById('val-resume');
-    if (valResume) {
-      valResume.textContent = data.has_resume ? `Resume Verified · ${currentSkills.length} Skills` : 'Drop Resume (PDF/MD)';
-    }
-    const dotResume = document.getElementById('dot-resume');
-    if (dotResume) {
-      dotResume.className = `param-status-dot ${data.has_resume ? 'ready' : ''}`;
-    }
+function useDraft(btn) {
+  const box = $('draft');
+  const lead = leadById(state.selectedId);
+  if (!box || !lead) return;
+  box.value = btn.dataset.draft;
+  box.dispatchEvent(new Event('input'));
+  saveDraft(lead, box.value);
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
-    const valRate = document.getElementById('val-rate');
-    if (valRate) {
-      valRate.textContent = `$${currentProfile.hourly_rate_usd || 35}/hr · Min $${currentProfile.minimum_project_budget_usd || 250}`;
-    }
+function hint(text) {
+  const el = $('card-hint');
+  if (!el) return;
+  el.textContent = text;
+  clearTimeout(hint.timer);
+  hint.timer = setTimeout(() => (el.textContent = ''), 3500);
+}
 
-    const valGithub = document.getElementById('val-github');
-    if (valGithub && currentProfile.github) {
-      valGithub.textContent = currentProfile.github.replace('https://', '').replace('http://', '');
+/* ---------------- Conversation ---------------- */
+
+function threadKey() {
+  return state.selectedId ?? 'overview';
+}
+
+function pushMessage(key, msg) {
+  (state.threads[key] ||= []).push(msg);
+  if (key === threadKey()) {
+    $('thread').insertAdjacentHTML('beforeend', messageHtml(msg));
+    refreshIcons();
+    scrollThread();
+  }
+}
+
+/** Shows a spinning-chakra row with an elapsed timer; returns a function that removes it. */
+function showThinking(key, text) {
+  const id = `thinking-${Date.now()}`;
+  pushMessage(key, { role: 'ai', text, thinking: true, id });
+  const started = Date.now();
+  const timer = setInterval(() => {
+    const el = document.querySelector(`#${id} [data-elapsed]`);
+    if (el) el.textContent = formatElapsed(Date.now() - started);
+  }, 1000);
+  return () => {
+    clearInterval(timer);
+    state.threads[key] = state.threads[key].filter((m) => m.id !== id);
+    document.getElementById(id)?.remove();
+  };
+}
+
+async function send() {
+  const input = $('input');
+  const text = input.value.trim();
+  if (!text || state.sending) return;
+
+  const key = threadKey();
+  const history = (state.threads[key] || []).filter((m) => !m.thinking).map((m) => ({
+    role: m.role === 'user' ? 'user' : 'assistant',
+    content: m.text,
+  }));
+
+  input.value = '';
+  autosize(input);
+  pushMessage(key, { role: 'user', text });
+
+  state.sending = true;
+  $('btn-send').disabled = true;
+  const stop = showThinking(key, key === 'overview' ? 'Thinking' : 'Reading the post');
+
+  try {
+    const data = await api('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: text, history, lead_id: key === 'overview' ? null : key }),
+    });
+    stop();
+    if (data.action === 'scan') {
+      runScan();
+    } else {
+      pushMessage(key, { role: 'ai', text: data.reply || '', draft: data.draft || null });
     }
   } catch (err) {
-    console.error('Error loading profile:', err);
+    stop();
+    pushMessage(key, { role: 'ai', text: `Something went wrong: ${err.message}` });
+  } finally {
+    state.sending = false;
+    $('btn-send').disabled = false;
   }
 }
 
-// Interactive Skill Tag Cloud Management
-function renderSkillsTags() {
-  const container = document.getElementById('skills-tag-list');
-  const hiddenInput = document.getElementById('onboard-skills');
-  if (!container) return;
+async function runScan() {
+  if (state.scanning) return;
+  state.scanning = true;
+  $('btn-scan').disabled = true;
+  $('brand-chakra').classList.add('spinning');
+  closeProfile(false);
+  if (state.selectedId) showOverview();
 
-  if (hiddenInput) {
-    hiddenInput.value = currentSkills.join(', ');
+  const stop = showThinking('overview', 'Reading Hacker News hiring threads and scoring posts. This takes a minute or two.');
+  try {
+    const data = await api('/api/pipeline/run', { method: 'POST' });
+    stop();
+    const report = data.report || {};
+    const lines = [
+      data.new_leads_count
+        ? `Done. I checked ${report.checked ?? 0} posts and **${data.new_leads_count} new ${data.new_leads_count === 1 ? 'one fits' : 'ones fit'}** you. ${data.new_leads_count === 1 ? "It's" : "They're"} in New on the left.`
+        : `Done. I checked ${report.checked ?? 0} posts, and nothing new cleared your 7/10 bar this time.`,
+    ];
+    const notes = Object.entries(report.sources || {})
+      .filter(([, i]) => i.error)
+      .map(([k, i]) => `${k === 'hn' ? 'Hacker News' : 'Reddit'} was skipped: ${i.error}`);
+    await Promise.all([loadLeads(), loadStatus()]);
+    state.tab = 'new';
+    renderSourceLine();
+    renderQueue();
+    pushMessage('overview', { role: 'ai', text: lines.join('\n\n'), notes });
+  } catch (err) {
+    stop();
+    pushMessage('overview', { role: 'ai', text: `The scan failed: ${err.message}` });
+  } finally {
+    state.scanning = false;
+    $('btn-scan').disabled = false;
+    $('brand-chakra').classList.remove('spinning');
   }
-
-  container.innerHTML = currentSkills.map((skill, idx) => `
-    <span class="skill-chip">
-      <span>${escapeHtml(skill)}</span>
-      <span class="skill-chip-remove" onclick="removeSkill(${idx})" title="Remove skill">✕</span>
-    </span>
-  `).join('');
 }
 
-function addSkill(skillName) {
-  const clean = skillName.trim();
-  if (clean && !currentSkills.includes(clean)) {
-    currentSkills.push(clean);
-    renderSkillsTags();
-  }
+/* ---------------- Profile ---------------- */
+
+function showProfile() {
+  const p = state.profile;
+  $('f-name').value = p.name || '';
+  $('f-rate').value = p.hourly_rate_usd ?? '';
+  $('f-min').value = p.minimum_project_budget_usd ?? '';
+  $('f-github').value = p.github || '';
+  $('f-linkedin').value = p.linkedin || '';
+  renderSkillChips();
+  $('thread').hidden = true;
+  $('composer').hidden = true;
+  $('profile-view').hidden = false;
+  refreshIcons();
 }
 
-function removeSkill(idx) {
-  currentSkills.splice(idx, 1);
-  renderSkillsTags();
+function closeProfile(render = true) {
+  $('profile-view').hidden = true;
+  $('thread').hidden = false;
+  $('composer').hidden = false;
+  if (render) renderStage();
 }
 
-function handleSkillAdd(e) {
+function renderSkillChips() {
+  $('skill-chips').innerHTML = state.skills.map((s, i) => `
+    <span class="chip">${escapeHtml(s)}<button type="button" onclick="removeSkill(${i})" title="Remove"><i data-lucide="x"></i></button></span>`).join('');
+  refreshIcons();
+}
+
+function skillKey(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
-    addCurrentSkillInput();
+    const v = e.target.value.trim();
+    if (v && !state.skills.includes(v)) state.skills.push(v);
+    e.target.value = '';
+    renderSkillChips();
+  } else if (e.key === 'Backspace' && !e.target.value && state.skills.length) {
+    state.skills.pop();
+    renderSkillChips();
   }
 }
 
-function addCurrentSkillInput() {
-  const input = document.getElementById('skill-add-input');
-  if (input && input.value.trim()) {
-    addSkill(input.value.trim());
-    input.value = '';
-  }
+function removeSkill(i) {
+  state.skills.splice(i, 1);
+  renderSkillChips();
 }
 
-// AI Resume Upload & Instant Parsing
-async function handleResumeUpload(event) {
-  const file = event.target.files?.[0];
+function setupDropzone() {
+  const dz = $('dropzone');
+  ['dragenter', 'dragover'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', (e) => uploadResume(e.dataTransfer.files[0]));
+}
+
+async function uploadResume(file) {
   if (!file) return;
-
-  const defaultBox = document.getElementById('dropzone-default');
-  const loadingBox = document.getElementById('dropzone-loading');
-
-  defaultBox.style.display = 'none';
-  loadingBox.style.display = 'flex';
-
-  const formData = new FormData();
-  formData.append('file', file);
-
+  $('dz-main').textContent = `Reading ${file.name}...`;
+  $('dz-sub').textContent = 'Extracting your skills and links.';
+  const form = new FormData();
+  form.append('file', file);
   try {
-    const res = await fetch('/api/profile/upload-resume', {
-      method: 'POST',
-      body: formData,
-    });
+    const res = await fetch('/api/profile/upload-resume', { method: 'POST', body: form });
     const data = await res.json();
-
-    if (data.error) {
-      alert('Upload notice: ' + data.error);
-    } else {
-      // Auto-fill fields from AI parsed resume!
-      if (data.name) document.getElementById('onboard-name').value = data.name;
-      if (data.github) document.getElementById('onboard-github').value = data.github;
-      if (data.linkedin) document.getElementById('onboard-linkedin').value = data.linkedin;
-      if (data.suggested_rate) document.getElementById('onboard-rate').value = data.suggested_rate;
-      if (data.summary) document.getElementById('onboard-resume').value = data.summary;
-
-      if (data.primary_skills && Array.isArray(data.primary_skills)) {
-        data.primary_skills.forEach(s => {
-          if (!currentSkills.includes(s)) currentSkills.push(s);
-        });
-        renderSkillsTags();
-      }
-
-      alert('Resume parsed! Extracted skills, contact links, and profile highlights.');
-    }
+    if (data.error) throw new Error(data.error);
+    if (data.name) $('f-name').value = data.name;
+    if (data.github) $('f-github').value = data.github;
+    if (data.linkedin) $('f-linkedin').value = data.linkedin;
+    if (data.suggested_rate) $('f-rate').value = data.suggested_rate;
+    if (data.summary) $('f-bio').value = data.summary;
+    (data.primary_skills || []).forEach((s) => { if (!state.skills.includes(s)) state.skills.push(s); });
+    renderSkillChips();
+    $('dz-main').textContent = `Read ${file.name}`;
+    $('dz-sub').textContent = 'Check the fields below, then save.';
   } catch (err) {
-    alert('Failed to parse resume: ' + err.message);
+    $('dz-main').textContent = "Couldn't read that file";
+    $('dz-sub').textContent = err.message;
   } finally {
-    defaultBox.style.display = 'flex';
-    loadingBox.style.display = 'none';
-    event.target.value = '';
+    $('resume-file').value = '';
   }
 }
 
-// Leads loading
-async function loadLeads() {
+async function saveProfile(e) {
+  e.preventDefault();
+  const btn = $('btn-save-profile');
+  btn.disabled = true;
+  $('profile-status').textContent = 'Saving and re-reading your profile...';
   try {
-    const res = await fetch('/api/leads?limit=50&min_score=7');
-    const data = await res.json();
-    allLeads = data.leads || [];
-
-    const pill = document.getElementById('leads-count-pill');
-    const drawerBadge = document.getElementById('drawer-total-count');
-    if (pill) pill.textContent = allLeads.length;
-    if (drawerBadge) drawerBadge.textContent = allLeads.length;
-
-    filterDrawerLeads();
-  } catch (err) {
-    console.error('Error loading leads:', err);
-  }
-}
-
-// Send user message
-function sendPrompt(promptText) {
-  document.getElementById('chat-user-input').value = promptText;
-  sendMessage();
-}
-
-async function sendMessage() {
-  const input = document.getElementById('chat-user-input');
-  const message = input.value.trim();
-  if (!message) return;
-
-  // Collapse the center hero
-  const hero = document.getElementById('center-hero');
-  if (hero) hero.style.display = 'none';
-
-  appendMessage('user', message);
-  input.value = '';
-  input.style.height = 'auto';
-
-  const typingId = appendThinkingIndicator();
-
-  try {
-    const res = await fetch('/api/chat', {
+    await api('/api/onboard', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: message,
-        history: conversationHistory,
+        name: $('f-name').value.trim(),
+        hourly_rate: parseInt($('f-rate').value, 10) || 35,
+        min_budget: parseInt($('f-min').value, 10) || 250,
+        github_url: $('f-github').value.trim(),
+        linkedin_url: $('f-linkedin').value.trim(),
+        skills: state.skills.join(', '),
+        resume_or_bio: $('f-bio').value.trim(),
       }),
     });
-    const data = await res.json();
-    removeElement(typingId);
-    appendMessage('ai', data.reply);
+    await loadProfile();
+    $('profile-status').textContent = 'Saved. New scans will use this.';
   } catch (err) {
-    removeElement(typingId);
-    appendMessage('ai', 'Error connecting to intelligence engine: ' + err.message);
+    $('profile-status').textContent = `Couldn't save: ${err.message}`;
+  } finally {
+    btn.disabled = false;
   }
 }
 
-function getSarthiChakraSvg(extraClass = '') {
-  return `
-    <svg class="sarthi-chakra-svg ${extraClass}" viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="13" stroke="url(#sarthi-live-rim)" stroke-width="2" stroke-linecap="round" stroke-dasharray="14 6" />
-      <path d="M16 16 C16 11 14 7 16 3" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
-      <path d="M16 16 C20 13 24 12 28.5 13" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
-      <path d="M16 16 C20 19 23 23 24.5 28" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
-      <path d="M16 16 C16 21 14 25 16 29" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
-      <path d="M16 16 C12 19 8 20 3.5 19" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
-      <path d="M16 16 C12 13 9 9 7.5 4" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
-      <circle cx="16" cy="16" r="3.2" fill="url(#sarthi-live-hub)" />
-      <circle cx="16" cy="16" r="1.3" fill="#ffffff" />
-      <defs>
-        <linearGradient id="sarthi-live-rim" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fbbf24" />
-          <stop offset="50%" stop-color="#ff5722" />
-          <stop offset="100%" stop-color="#f97316" />
-        </linearGradient>
-        <linearGradient id="sarthi-live-spoke" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#ff5722" />
-          <stop offset="100%" stop-color="#fbbf24" />
-        </linearGradient>
-        <radialGradient id="sarthi-live-hub" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#ff5722" />
-          <stop offset="100%" stop-color="#c2410c" />
-        </radialGradient>
-      </defs>
-    </svg>
-  `;
+/* ---------------- Input & keys ---------------- */
+
+function setupInput() {
+  const input = $('input');
+  input.addEventListener('input', () => autosize(input));
 }
 
-function appendMessage(role, content) {
-  conversationHistory.push({ role, content });
-  const container = document.getElementById('messages-flow');
-
-  const row = document.createElement('div');
-  row.className = `msg-row ${role}`;
-
-  // AI Avatar (SARTHI Chakra Logo)
-  if (role === 'ai') {
-    const avatar = document.createElement('div');
-    avatar.className = 'ai-avatar';
-    avatar.innerHTML = getSarthiChakraSvg();
-    row.appendChild(avatar);
+function inputKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
   }
-
-  // Clean Message Content (NO 'YOU' BADGE for user message!)
-  const contentBox = document.createElement('div');
-  contentBox.className = 'msg-content';
-  contentBox.innerHTML = renderFormattedContent(content);
-  row.appendChild(contentBox);
-
-  container.appendChild(row);
-  scrollToBottom();
-  initLucide();
 }
 
-const SARTHI_THINKING_PHRASES = [
-  "Navigating market signals...",
-  "Evaluating candidate alignment...",
-  "Synthesizing strategic intelligence...",
-  "Calibrating opportunity fit...",
-  "Formulating high-conversion approach...",
-  "Consulting market radar..."
-];
-
-function appendThinkingIndicator() {
-  const container = document.getElementById('messages-flow');
-  const id = 'thinking-' + Date.now();
-
-  const row = document.createElement('div');
-  row.id = id;
-  row.className = 'msg-row ai thinking-row';
-  row.innerHTML = `
-    <div class="ai-avatar thinking-logo-spin">
-      ${getSarthiChakraSvg('chakra-thinking-spin')}
-    </div>
-    <div class="msg-content">
-      <div class="thinking-label" id="label-${id}">${SARTHI_THINKING_PHRASES[0]}</div>
-    </div>
-  `;
-
-  container.appendChild(row);
-  scrollToBottom();
-
-  // Dynamic cycling thinking words like Claude / Perplexity
-  let phraseIdx = 0;
-  const timer = setInterval(() => {
-    const labelEl = document.getElementById(`label-${id}`);
-    if (!labelEl) {
-      clearInterval(timer);
+function setupKeys() {
+  document.addEventListener('keydown', (e) => {
+    const typing = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+    if (e.key === 'Escape') {
+      if (typing) document.activeElement.blur();
+      else if (!$('profile-view').hidden) closeProfile();
+      else showOverview();
       return;
     }
-    labelEl.style.transition = 'opacity 0.22s ease';
-    labelEl.style.opacity = '0';
-    setTimeout(() => {
-      phraseIdx = (phraseIdx + 1) % SARTHI_THINKING_PHRASES.length;
-      labelEl.textContent = SARTHI_THINKING_PHRASES[phraseIdx];
-      labelEl.style.opacity = '1';
-    }, 220);
-  }, 1700);
+    if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
 
-  return id;
-}
-
-function triggerDirectResumeUpload() {
-  const fileInput = document.getElementById('direct-resume-file');
-  if (fileInput) fileInput.click();
-}
-
-function removeElement(id) {
-  const el = document.getElementById(id);
-  if (el) el.remove();
-}
-
-function scrollToBottom() {
-  const viewport = document.getElementById('chat-viewport');
-  if (viewport) {
-    viewport.scrollTop = viewport.scrollHeight;
-  }
-}
-
-// Markdown formatting
-function renderFormattedContent(text) {
-  if (!text) return '';
-  let html = escapeHtml(text);
-
-  // Bold & Italic
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h4 style="font-size:0.95rem; font-weight:600; margin:12px 0 6px;">$1</h4>');
-  html = html.replace(/^## (.*$)/gim, '<h3 style="font-size:1.05rem; font-weight:600; margin:16px 0 8px;">$1</h3>');
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08); padding:2px 5px; border-radius:4px; font-family:var(--font-mono); font-size:0.82rem;">$1</code>');
-
-  // Code blocks with copy
-  html = html.replace(/```(?:[a-z]*)\n([\s\S]*?)```/g, (match, code) => {
-    const encoded = encodeURIComponent(code.trim());
-    return `<div style="background:var(--bg-surface); border:1px solid var(--border-default); border-radius:8px; padding:12px; margin:10px 0; position:relative;">
-      <pre style="margin:0; overflow-x:auto; font-family:var(--font-mono); font-size:0.82rem;"><code>${code}</code></pre>
-      <button class="btn-inline-copy" style="position:absolute; top:8px; right:8px;" onclick="copyRawText('${encoded}', this)">
-        <i data-lucide="copy" class="icon-xs"></i> <span>Copy</span>
-      </button>
-    </div>`;
+    if (e.key === '/') {
+      e.preventDefault();
+      $('input').focus();
+    } else if (e.key === 'j' || e.key === 'k') {
+      const list = visibleLeads();
+      if (!list.length) return;
+      const idx = list.findIndex((l) => l.id === state.selectedId);
+      const next = e.key === 'j' ? Math.min(idx + 1, list.length - 1) : Math.max(idx - 1, 0);
+      selectLead(list[idx === -1 ? 0 : next].id);
+    }
   });
+}
 
-  // Links
-  html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--accent); text-decoration:underline;">$1</a>');
+/* ---------------- Helpers ---------------- */
 
-  // Paragraph breaks
-  html = html.replace(/\n\n/g, '<br><br>');
-  html = html.replace(/\n/g, '<br>');
+function refreshIcons() {
+  window.lucide?.createIcons();
+}
 
-  return html;
+function scrollThread() {
+  const t = $('thread');
+  t.scrollTop = t.scrollHeight;
+}
+
+function autosize(el) {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight + 2}px`;
+}
+
+function isKnown(value) {
+  return value && !/^(none|n\/a|not specified|unspecified|negotiable|unspecified \/ negotiable)/i.test(value.trim());
+}
+
+function shorten(s, n) {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+function wordCount(s) {
+  return (s.trim().match(/\S+/g) || []).length;
+}
+
+function formatElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const hasZone = /[zZ]|[+-]\d\d:?\d\d$/.test(iso);
+  const then = new Date(hasZone ? iso : `${iso.replace(' ', 'T')}Z`);
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
 }
 
 function escapeHtml(str) {
-  return (str || '')
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -411,152 +702,29 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-function copyRawText(encoded, btn) {
-  const text = decodeURIComponent(encoded);
-  navigator.clipboard.writeText(text).then(() => {
-    btn.classList.add('copied');
-    btn.innerHTML = `<i data-lucide="check" class="icon-xs"></i> <span>Copied</span>`;
-    initLucide();
-    setTimeout(() => {
-      btn.classList.remove('copied');
-      btn.innerHTML = `<i data-lucide="copy" class="icon-xs"></i> <span>Copy</span>`;
-      initLucide();
-    }, 2000);
-  });
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/\n/g, '&#10;');
 }
 
-// Live Discovery Scan Action
-async function triggerDiscoveryScan() {
-  const btn = document.getElementById('btn-quick-scan');
-  const icon = document.getElementById('quick-scan-icon');
-  btn.disabled = true;
-  icon.classList.add('spin-icon');
-
-  try {
-    const res = await fetch('/api/pipeline/run', { method: 'POST' });
-    const data = await res.json();
-    await loadLeads();
-
-    const hero = document.getElementById('center-hero');
-    if (hero) hero.style.display = 'none';
-
-    appendMessage('ai', `⚡ **Scan Completed:** Found **${data.new_leads_count || 0} fresh opportunities**!\n\nOpen the **Opportunities Drawer** at top-right to inspect, or ask me: *"Show top 3 leads"*.`);
-  } catch (err) {
-    alert('Scan error: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    icon.classList.remove('spin-icon');
-  }
+function linkify(html) {
+  return html.replace(/(https?:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
-// Drawer Handling
-function toggleDrawer() {
-  const drawer = document.getElementById('leads-drawer');
-  const backdrop = document.getElementById('drawer-backdrop');
-  drawer.classList.toggle('open');
-  backdrop.classList.toggle('open');
-  if (drawer.classList.contains('open')) {
-    filterDrawerLeads();
-  }
+function notesHtml(notes) {
+  return notes?.length ? `<p class="note">${notes.map(escapeHtml).join('<br>')}</p>` : '';
 }
 
-function setDrawerSource(src) {
-  drawerSourceFilter = src;
-  document.querySelectorAll('.pill-btn').forEach(b => {
-    b.classList.toggle('active', b.getAttribute('data-src') === src);
-  });
-  filterDrawerLeads();
-}
-
-function filterDrawerLeads() {
-  const query = (document.getElementById('drawer-search')?.value || '').toLowerCase().trim();
-  const listContainer = document.getElementById('drawer-leads-list');
-  if (!listContainer) return;
-
-  filteredDrawerLeads = allLeads.filter(l => {
-    if (drawerSourceFilter !== 'all' && l.source.toLowerCase() !== drawerSourceFilter) return false;
-    if (query) {
-      const match = (l.title || '').toLowerCase().includes(query) ||
-                    (l.budget || '').toLowerCase().includes(query) ||
-                    (l.tech || []).some(t => t.toLowerCase().includes(query));
-      if (!match) return false;
-    }
-    return true;
-  });
-
-  if (filteredDrawerLeads.length === 0) {
-    listContainer.innerHTML = `
-      <div style="text-align:center; padding:40px 10px; color:var(--text-muted); font-size:0.85rem;">
-        No opportunities match current filter.
-      </div>
-    `;
-    return;
-  }
-
-  listContainer.innerHTML = filteredDrawerLeads.map(l => {
-    const encodedDraft = encodeURIComponent(l.draft_reply || '');
-    return `
-      <div class="lead-result-card">
-        <div class="lead-card-header">
-          <span class="source-tag">${l.source.toUpperCase()}</span>
-          <span class="match-tag">${l.score}/10 Match</span>
-        </div>
-        <div class="lead-card-title">${escapeHtml(l.title)}</div>
-        <div class="lead-card-meta">
-          <span class="budget-val">${escapeHtml(l.budget || 'Budget Undisclosed')}</span>
-          <span>@${escapeHtml(l.author || 'anon')}</span>
-        </div>
-        <div class="lead-proposal-box">${escapeHtml(l.draft_reply || 'Draft will be generated upon scan.')}</div>
-        <div class="lead-card-footer">
-          <a href="${l.url}" target="_blank" rel="noopener noreferrer" style="color:var(--text-secondary); font-size:0.78rem; text-decoration:none; display:flex; align-items:center; gap:4px;">
-            <span>Open Post</span> <i data-lucide="external-link" class="icon-xs"></i>
-          </a>
-          <button class="btn-inline-copy" onclick="copyRawText('${encodedDraft}', this)">
-            <i data-lucide="copy" class="icon-xs"></i> <span>Copy Draft</span>
-          </button>
-        </div>
-      </div>
-    `;
+/** Minimal markdown for SARTHI replies. Everything is escaped first. */
+function renderText(text) {
+  const blocks = String(text ?? '').split(/\n{2,}/);
+  return blocks.map((block) => {
+    const fence = block.match(/^```[a-z]*\n?([\s\S]*?)```$/);
+    if (fence) return `<pre>${escapeHtml(fence[1].trim())}</pre>`;
+    let html = escapeHtml(block)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/\n/g, '<br>');
+    return `<p>${html}</p>`;
   }).join('');
-
-  initLucide();
-}
-
-// Modal Handling
-function openOnboarding() {
-  document.getElementById('onboarding-modal').classList.add('open');
-  initLucide();
-}
-
-function closeOnboarding() {
-  document.getElementById('onboarding-modal').classList.remove('open');
-}
-
-async function submitOnboarding(e) {
-  e.preventDefault();
-  const btn = document.getElementById('btn-save-profile');
-  btn.disabled = true;
-
-  const payload = {
-    name: document.getElementById('onboard-name').value.trim(),
-    hourly_rate: parseInt(document.getElementById('onboard-rate').value, 10) || 45,
-    github_url: document.getElementById('onboard-github').value.trim(),
-    linkedin_url: document.getElementById('onboard-linkedin').value.trim(),
-    skills: currentSkills.join(', '),
-    resume_or_bio: document.getElementById('onboard-resume').value.trim(),
-  };
-
-  try {
-    await fetch('/api/onboard', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    closeOnboarding();
-    loadProfile();
-  } catch (err) {
-    alert('Failed to save profile: ' + err.message);
-  } finally {
-    btn.disabled = false;
-  }
 }

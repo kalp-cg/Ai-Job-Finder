@@ -4,12 +4,14 @@ This file defines the engineering and design rules for this repository.
 
 ## 1. UI/UX & Frontend Standards (Anti-AI Design System)
 
-For any frontend code (HTML, CSS, JS, React, etc.), strictly follow [UI_UX_RULES.md](file:///home/kalppatel/Desktop/job-ai-project/UI_UX_RULES.md):
+For any frontend or agent-reply change, strictly follow [UI_UX_RULES.md](UI_UX_RULES.md). In short:
 
-- **Strict NO-EMOJI Rule in UI Chrome:** Never use OS emojis (`⚡`, `🔍`, `🚀`, `💬`, `🎯`) for icons, buttons, or navigation. Always use **Lucide SVG icons** (`<i data-lucide="..."></i>` with `lucide.createIcons()`).
-- **No Chatbot-First Screen Layouts:** Functional tools must NOT default to centered "ChatGPT/Claude" greeting heroes with prompt pills. Always build a **High-Density Operator Split-Pane** (telemetry header, dense feed on the left, active inspector/action studio on the right).
-- **Matte Earthen Palette & The 90/9/1 Rule:** Ground surfaces with warm espresso neutrals (`#161513`, `#1D1C19`, `#24231F`) and `#292823` hairline borders. Never use the primary-color "traffic light" rainbow (blue buttons, green badges, yellow tags). Use linen text opacity for 99% of UI hierarchy and strictly ONE signature accent (Terracotta `#D97757`).
-- **Tabular Monospace Numerics:** Use `JetBrains Mono` with `tabular-nums` for all rates, match scores, timestamps, and badges.
+- **Product:** SARTHI is an inbox for paid work: status queue on the left, SARTHI's briefing / post card / conversation on the right. No greeting heroes, prompt chips, or empty dashboard widgets.
+- **Honest data first:** never fall back to sample data silently, surface source errors in plain words, never invent links or claim actions that didn't happen.
+- **Color:** black and white neutrals (`#0b0b0c`, `#111113`, `#17171a`, white at 64% / 40% opacity for hierarchy) and ONE accent, ember `#ff5722`, used only for the mark, primary button, selection, and focus. No gradients, glows, or extra colors.
+- **No emojis** in the UI or in SARTHI's replies. Lucide SVG icons only.
+- **Tabular monospace:** `JetBrains Mono` with `tabular-nums` for scores, money, counts, and times.
+- **Motion:** the chakra mark spins only while SARTHI is working.
 
 ## 2. Engineering Behavior Guidelines
 

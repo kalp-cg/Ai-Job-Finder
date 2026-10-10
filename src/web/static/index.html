@@ -3,302 +3,116 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SARTHI — AI Career & Opportunity Navigator</title>
-  <meta name="description" content="SARTHI: Autonomous AI opportunity navigator for finding freelance leads, tech internships, and drafting winning proposals.">
+  <title>SARTHI</title>
+  <meta name="description" content="SARTHI finds paid work that fits you on Hacker News and Reddit, and drafts replies you send yourself.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
-  <!-- Lucide Vector Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-  <div class="canvas">
-    <!-- Minimalist Top Navigation -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="logo-mark" title="SARTHI — Strategic Opportunity Navigator">
-          <svg class="sarthi-chakra" viewBox="0 0 32 32" fill="none">
-            <!-- Segmented Chariot Wheel Rim -->
-            <circle cx="16" cy="16" r="13" stroke="url(#sarthi-rim)" stroke-width="2" stroke-linecap="round" stroke-dasharray="14 6" />
-            <!-- Aerodynamic Guidance Spokes -->
-            <path d="M16 16 C16 11 14 7 16 3" stroke="url(#sarthi-spoke)" stroke-width="2" stroke-linecap="round" />
-            <path d="M16 16 C20 13 24 12 28.5 13" stroke="url(#sarthi-spoke)" stroke-width="2" stroke-linecap="round" />
-            <path d="M16 16 C20 19 23 23 24.5 28" stroke="url(#sarthi-spoke)" stroke-width="2" stroke-linecap="round" />
-            <path d="M16 16 C16 21 14 25 16 29" stroke="url(#sarthi-spoke)" stroke-width="2" stroke-linecap="round" />
-            <path d="M16 16 C12 19 8 20 3.5 19" stroke="url(#sarthi-spoke)" stroke-width="2" stroke-linecap="round" />
-            <path d="M16 16 C12 13 9 9 7.5 4" stroke="url(#sarthi-spoke)" stroke-width="2" stroke-linecap="round" />
-            <!-- Radiant Central Hub -->
-            <circle cx="16" cy="16" r="3.2" fill="url(#sarthi-hub)" />
-            <circle cx="16" cy="16" r="1.3" fill="#ffffff" />
-            <defs>
-              <linearGradient id="sarthi-rim" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#fbbf24" />
-                <stop offset="50%" stop-color="#ff5722" />
-                <stop offset="100%" stop-color="#f97316" />
-              </linearGradient>
-              <linearGradient id="sarthi-spoke" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#ff5722" />
-                <stop offset="100%" stop-color="#fbbf24" />
-              </linearGradient>
-              <radialGradient id="sarthi-hub" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#ff5722" />
-                <stop offset="100%" stop-color="#c2410c" />
-              </radialGradient>
-            </defs>
-          </svg>
-        </div>
-        <span class="logo-text">SARTHI</span>
-      </div>
+  <!-- Single source for the SARTHI chakra mark; reused via <use>. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="chakra" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="16" cy="16" r="13" stroke-dasharray="14 6.4" />
+      <path d="M16 13V3M18.6 14.5l8.7-5M18.6 17.5l8.7 5M16 19v10M13.4 17.5l-8.7 5M13.4 14.5l-8.7-5" />
+      <circle cx="16" cy="16" r="2.6" fill="currentColor" stroke="none" />
+    </symbol>
+  </svg>
 
-      <div class="header-right">
-        <button class="btn-ghost" id="btn-toggle-drawer" onclick="toggleDrawer()" title="View Saved Leads">
-          <i data-lucide="inbox" class="icon-sm"></i>
-          <span>Opportunities</span>
-          <span class="count-pill" id="leads-count-pill">0</span>
-        </button>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="chakra" id="brand-chakra"><use href="#chakra" /></svg>
+      <span class="brand-name">SARTHI</span>
+    </div>
 
-        <button class="btn-ghost" onclick="openOnboarding()" title="Profile & Preferences">
-          <i data-lucide="user" class="icon-sm"></i>
-          <span id="user-display-name">Profile Setup</span>
-        </button>
-      </div>
-    </header>
+    <div class="source-line" id="source-line"></div>
 
-    <!-- Main Centered Experience -->
-    <main class="chat-viewport" id="chat-viewport">
-      <div class="conversation-container" id="conversation-container">
-        
-        <!-- Center Optical Hero (Visible when empty, smoothly collapses when chatting) -->
-        <div class="center-hero" id="center-hero">
-          <div class="hero-animation-wrap">
-            <div class="hero-pulse-glow"></div>
-            <div class="hero-brand-mark">
-              <svg class="hero-chakra-large" viewBox="0 0 32 32" fill="none">
-                <circle cx="16" cy="16" r="13" stroke="url(#hero-rim)" stroke-width="2" stroke-linecap="round" stroke-dasharray="14 6" />
-                <path d="M16 16 C16 11 14 7 16 3" stroke="url(#hero-spoke)" stroke-width="2" stroke-linecap="round" />
-                <path d="M16 16 C20 13 24 12 28.5 13" stroke="url(#hero-spoke)" stroke-width="2" stroke-linecap="round" />
-                <path d="M16 16 C20 19 23 23 24.5 28" stroke="url(#hero-spoke)" stroke-width="2" stroke-linecap="round" />
-                <path d="M16 16 C16 21 14 25 16 29" stroke="url(#hero-spoke)" stroke-width="2" stroke-linecap="round" />
-                <path d="M16 16 C12 19 8 20 3.5 19" stroke="url(#hero-spoke)" stroke-width="2" stroke-linecap="round" />
-                <path d="M16 16 C12 13 9 9 7.5 4" stroke="url(#hero-spoke)" stroke-width="2" stroke-linecap="round" />
-                <circle cx="16" cy="16" r="3.4" fill="url(#hero-hub)" />
-                <circle cx="16" cy="16" r="1.4" fill="#ffffff" />
-                <defs>
-                  <linearGradient id="hero-rim" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#fbbf24" />
-                    <stop offset="50%" stop-color="#ff5722" />
-                    <stop offset="100%" stop-color="#f97316" />
-                  </linearGradient>
-                  <linearGradient id="hero-spoke" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#ff5722" />
-                    <stop offset="100%" stop-color="#fbbf24" />
-                  </linearGradient>
-                  <radialGradient id="hero-hub" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#ff5722" />
-                    <stop offset="100%" stop-color="#c2410c" />
-                  </radialGradient>
-                </defs>
-              </svg>
-            </div>
-          </div>
-
-          <h1 class="hero-heading">Where should SARTHI navigate today?</h1>
-          <p class="hero-subheading">Autonomous discovery across Hacker News & Reddit, evaluation against your target rate, and custom proposals.</p>
-
-          <!-- Dynamic Calibration Parameters Panel -->
-          <div class="parameter-grid" id="parameter-grid">
-            <div class="param-card" onclick="triggerDirectResumeUpload()" title="Drop or upload your resume">
-              <div class="param-card-header">
-                <div class="param-icon-badge"><i data-lucide="file-text" class="icon-xs"></i></div>
-                <span class="param-label">Resume Intelligence</span>
-                <span class="param-status-dot ready" id="dot-resume"></span>
-              </div>
-              <div class="param-value" id="val-resume">Resume Loaded · 7 Core Skills</div>
-              <div class="param-hint">Click to drop or update resume</div>
-            </div>
-
-            <div class="param-card" onclick="openOnboarding()" title="Configure target compensation">
-              <div class="param-card-header">
-                <div class="param-icon-badge"><i data-lucide="dollar-sign" class="icon-xs"></i></div>
-                <span class="param-label">Rate & Budget Floor</span>
-                <span class="param-status-dot ready" id="dot-rate"></span>
-              </div>
-              <div class="param-value" id="val-rate">$35/hr · Min $250 Project</div>
-              <div class="param-hint">Adjust hourly rate threshold</div>
-            </div>
-
-            <div class="param-card" onclick="openOnboarding()" title="Connect GitHub & LinkedIn">
-              <div class="param-card-header">
-                <div class="param-icon-badge"><i data-lucide="github" class="icon-xs"></i></div>
-                <span class="param-label">Proof of Work</span>
-                <span class="param-status-dot ready" id="dot-github"></span>
-              </div>
-              <div class="param-value" id="val-github">github.com/kalppatel</div>
-              <div class="param-hint">Links verified for proposal citations</div>
-            </div>
-
-            <div class="param-card" onclick="sendPrompt('Scan Reddit & Hacker News right now for new freelance contracts')" title="Run discovery on calibrated parameters">
-              <div class="param-card-header">
-                <div class="param-icon-badge"><i data-lucide="radar" class="icon-xs"></i></div>
-                <span class="param-label">Market Scope</span>
-                <span class="param-status-dot ready"></span>
-              </div>
-              <div class="param-value" id="val-scope">Reddit & HN · 17 High-Fit Leads</div>
-              <div class="param-hint">Click to run fresh market scan</div>
-            </div>
-          </div>
-
-          <!-- Hidden direct file picker for seamless resume upload -->
-          <input type="file" id="direct-resume-file" accept=".pdf,.txt,.md" style="display:none" onchange="handleResumeUpload(event)">
-        </div>
-
-        <!-- Chat Messages Container -->
-        <div class="messages-flow" id="messages-flow"></div>
-      </div>
-    </main>
-
-    <!-- Bottom Anchored Prompt Console -->
-    <footer class="input-section">
-      <div class="input-card">
-        <textarea
-          id="chat-user-input"
-          class="chat-input-textarea"
-          placeholder="Ask anything, or paste a job posting to draft a tailored proposal..."
-          rows="1"
-          onkeydown="handleKey(event)"
-        ></textarea>
-
-        <div class="input-toolbar">
-          <div class="toolbar-left">
-            <button class="toolbar-btn" onclick="triggerDiscoveryScan()" id="btn-quick-scan" title="Run instant discovery scan">
-              <i data-lucide="refresh-cw" class="icon-xs" id="quick-scan-icon"></i>
-              <span>Run Live Discovery</span>
-            </button>
-          </div>
-
-          <div class="toolbar-right">
-            <span class="submit-hint">Enter to send • Shift + Enter for newline</span>
-            <button class="btn-send-round" id="btn-send-message" onclick="sendMessage()" title="Send">
-              <i data-lucide="arrow-up" class="icon-sm"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </footer>
-  </div>
-
-  <!-- Slide-Out Leads Drawer -->
-  <aside class="leads-drawer" id="leads-drawer">
-    <div class="drawer-header">
-      <div class="drawer-title-group">
-        <i data-lucide="briefcase" class="icon-sm text-accent"></i>
-        <h3>Saved Opportunities</h3>
-        <span class="drawer-badge" id="drawer-total-count">0</span>
-      </div>
-      <button class="btn-close" onclick="toggleDrawer()">
-        <i data-lucide="x" class="icon-sm"></i>
+    <div class="topbar-actions">
+      <button class="btn btn-primary" id="btn-scan" onclick="runScan()">
+        <i data-lucide="radar"></i><span>Scan</span>
+      </button>
+      <button class="btn btn-quiet" id="btn-profile" onclick="showProfile()">
+        <i data-lucide="user-round"></i><span id="profile-name">Profile</span>
       </button>
     </div>
+  </header>
 
-    <div class="drawer-filters">
-      <input type="text" id="drawer-search" placeholder="Filter by skill, title, budget..." oninput="filterDrawerLeads()" class="drawer-search-input">
-      <div class="drawer-filter-pills">
-        <button class="pill-btn active" data-src="all" onclick="setDrawerSource('all')">All</button>
-        <button class="pill-btn" data-src="hn" onclick="setDrawerSource('hn')">Hacker News</button>
-        <button class="pill-btn" data-src="reddit" onclick="setDrawerSource('reddit')">Reddit</button>
-      </div>
-    </div>
+  <div class="workspace">
+    <!-- Queue -->
+    <aside class="queue">
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="new" onclick="setTab('new')">New <span class="num" id="count-new">0</span></button>
+        <button class="tab" data-tab="sent" onclick="setTab('sent')">Sent <span class="num" id="count-sent">0</span></button>
+        <button class="tab" data-tab="won" onclick="setTab('won')">Won <span class="num" id="count-won">0</span></button>
+        <button class="tab" data-tab="passed" onclick="setTab('passed')">Passed <span class="num" id="count-passed">0</span></button>
+      </nav>
 
-    <div class="drawer-list" id="drawer-leads-list">
-      <!-- Populated via JS -->
-    </div>
-  </aside>
-  <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleDrawer()"></div>
+      <div class="queue-list" id="queue-list"></div>
 
-  <!-- AI Profile & Resume Intelligence Modal -->
-  <div class="modal-backdrop" id="onboarding-modal">
-    <div class="modal-card">
-      <div class="modal-card-header">
-        <div class="flex-center gap-2">
-          <i data-lucide="sparkles" class="icon-sm text-accent"></i>
-          <h4>AI Candidate Profile & Criteria</h4>
-        </div>
-        <button class="btn-close" onclick="closeOnboarding()">
-          <i data-lucide="x" class="icon-sm"></i>
-        </button>
-      </div>
+      <footer class="queue-foot">
+        <button class="link-btn" id="toggle-samples" onclick="toggleSamples()"></button>
+        <span class="keys"><kbd>j</kbd><kbd>k</kbd> move · <kbd>/</kbd> ask</span>
+      </footer>
+    </aside>
 
-      <!-- Resume Smart Dropzone -->
-      <div class="resume-dropzone" id="resume-dropzone" onclick="document.getElementById('resume-file-input').click()">
-        <input type="file" id="resume-file-input" accept=".pdf,.txt,.md" style="display:none;" onchange="handleResumeUpload(event)">
-        <div class="dropzone-content" id="dropzone-default">
-          <div class="dropzone-icon-wrap">
-            <i data-lucide="file-up" class="dropzone-icon"></i>
-          </div>
-          <div class="dropzone-text">
-            <span class="dropzone-primary">Drop Resume (PDF or TXT) to Auto-Extract</span>
-            <span class="dropzone-secondary">Gemini parses your skills, experience, and links automatically</span>
-          </div>
-        </div>
-        <div class="dropzone-loading" id="dropzone-loading" style="display:none;">
-          <div class="spinner-sm"></div>
-          <span>Analyzing resume with Gemini & extracting profile...</span>
-        </div>
-      </div>
+    <!-- Thread -->
+    <main class="stage" id="stage">
+      <div class="thread" id="thread"></div>
 
-      <form id="onboarding-form" onsubmit="submitOnboarding(event)">
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">Full Name / Signature</label>
-            <input type="text" id="onboard-name" class="form-input" placeholder="e.g. Kalp Patel" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Target Rate ($ USD / hr)</label>
-            <input type="number" id="onboard-rate" class="form-input" placeholder="45" min="15" value="45" />
-          </div>
+      <section class="profile-view" id="profile-view" hidden>
+        <div class="profile-head">
+          <button class="link-btn" onclick="closeProfile()"><i data-lucide="arrow-left"></i>Back</button>
+          <h2>Profile</h2>
+          <p class="muted">SARTHI uses this to score posts and write drafts. Drafts only link to what you put here.</p>
         </div>
 
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">GitHub Profile</label>
-            <input type="url" id="onboard-github" class="form-input" placeholder="https://github.com/kalppatel" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label">LinkedIn Profile</label>
-            <input type="url" id="onboard-linkedin" class="form-input" placeholder="https://linkedin.com/in/kalppatel" />
-          </div>
-        </div>
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="resume-file" accept=".pdf,.txt,.md" hidden onchange="uploadResume(this.files[0])">
+          <i data-lucide="file-up"></i>
+          <span class="dz-main" id="dz-main">Drop your resume here, or click to choose</span>
+          <span class="dz-sub" id="dz-sub">PDF, TXT or MD. Fields below fill in from it.</span>
+        </label>
 
-        <!-- Interactive Skills Tag Cloud -->
-        <div class="form-group">
-          <label class="form-label">Verified Tech Skills</label>
-          <div class="skills-manager">
-            <div class="skills-tag-list" id="skills-tag-list">
-              <!-- Rendered dynamic chips -->
-            </div>
-            <div class="skill-input-row">
-              <input type="text" id="skill-add-input" class="form-input-sm" placeholder="Type a skill & press Enter (e.g. Next.js, PyTorch)..." onkeydown="handleSkillAdd(event)">
-              <button type="button" class="btn-add-tag" onclick="addCurrentSkillInput()">+ Add</button>
+        <form id="profile-form" onsubmit="saveProfile(event)">
+          <div class="field-row">
+            <label class="field"><span>Name</span><input id="f-name" required></label>
+            <label class="field"><span>Rate, USD/hr</span><input id="f-rate" type="number" min="5" class="mono"></label>
+            <label class="field"><span>Min project, USD</span><input id="f-min" type="number" min="0" class="mono"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>GitHub</span><input id="f-github" type="url" required></label>
+            <label class="field"><span>LinkedIn</span><input id="f-linkedin" type="url"></label>
+          </div>
+          <div class="field">
+            <span>Skills</span>
+            <div class="chips-input" onclick="document.getElementById('f-skill').focus()">
+              <div id="skill-chips" class="chips"></div>
+              <input id="f-skill" placeholder="Add a skill and press Enter" onkeydown="skillKey(event)">
             </div>
           </div>
-          <input type="hidden" id="onboard-skills" />
-        </div>
+          <label class="field"><span>Highlights</span>
+            <textarea id="f-bio" rows="4" placeholder="Two or three projects you're proud of, with results."></textarea>
+          </label>
+          <div class="form-actions">
+            <span class="muted" id="profile-status"></span>
+            <button class="btn btn-primary" id="btn-save-profile" type="submit">Save profile</button>
+          </div>
+        </form>
+      </section>
 
-        <div class="form-group">
-          <label class="form-label">Key Projects & Resume Highlights</label>
-          <textarea id="onboard-resume" class="form-textarea" rows="3" placeholder="Briefly highlight 2-3 flagship projects, impact metrics, or niche domains..."></textarea>
+      <footer class="composer" id="composer">
+        <div class="context-chip" id="context-chip" hidden>
+          <span id="context-label"></span>
+          <button onclick="showOverview()" title="Back to overview"><i data-lucide="x"></i></button>
         </div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn-cancel" onclick="closeOnboarding()">Cancel</button>
-          <button type="submit" class="btn-submit" id="btn-save-profile">
-            <i data-lucide="check" class="icon-xs"></i>
-            <span>Save & Recalibrate Engine</span>
-          </button>
+        <div class="input-shell">
+          <textarea id="input" rows="1" placeholder="Ask SARTHI anything" onkeydown="inputKey(event)"></textarea>
+          <button class="send" id="btn-send" onclick="send()" title="Send"><i data-lucide="arrow-up"></i></button>
         </div>
-      </form>
-    </div>
+      </footer>
+    </main>
   </div>
 
   <script src="/static/app.js"></script>
