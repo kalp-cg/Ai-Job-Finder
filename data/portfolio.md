@@ -1,15 +1,15 @@
 # Freelance Portfolio & Case Studies
 
-### Case Study A: Autonomous RAG Knowledge Retrieval Engine
-- **Problem:** Knowledge teams were losing hours locating domain-specific documents across fragmented, high-volume data silos.
-- **Solution:** Architected an end-to-end RAG application using FastAPI, PostgreSQL (pgvector), and an agentic re-ranking pipeline paired with a modern Next.js interface.
-- **Outcome:** Decreased research retrieval latency by 70% and delivered contextual responses with 95%+ precision.
+### Case Study A: Adversarial Test Suite for Frontier LLM Agents
+- **Problem:** Frontier AI models required rigorous testing to uncover edge-case failures, safety risks, and behavioral vulnerabilities before deployment.
+- **Solution:** Architected automated, adversarial benchmarking frameworks using Python to systematically evaluate agentic capabilities and safety boundaries.
+- **Outcome:** Identified critical edge-case vulnerabilities, accelerating model alignment and safe deployment cycles for complex LLM agents.
 - **Relevant Link:** https://github.com/kalppatel
-- **Keywords:** Python, FastAPI, RAG, PostgreSQL, Next.js
+- **Keywords:** Python, LLM Agent Benchmarking, AI Evaluation, Adversarial Testing
 
-### Case Study B: Multi-Agent Workflow Automation Platform
-- **Problem:** Manual cross-platform workflows and data validation processes created major operational bottlenecks for operations staff.
-- **Solution:** Built an autonomous multi-agent system utilizing Python and LLM tool calling to execute chained research, validation, and automated reporting tasks.
-- **Outcome:** Saved 15+ manual operational hours per week and containerized the system via Docker for reproducible zero-downtime deployment.
+### Case Study B: Scalable Full-Stack SaaS Application Architecture
+- **Problem:** The project required a modern, highly responsive frontend coupled with a high-throughput, containerized backend capable of executing complex relational queries.
+- **Solution:** Built an end-to-end full-stack SaaS solution utilizing Next.js and TypeScript on the frontend, FastAPI and PostgreSQL on the backend, fully containerized with Docker.
+- **Outcome:** Achieved fast page load times, sub-second API response rates, and seamless deployment across development and production environments.
 - **Relevant Link:** https://github.com/kalppatel
-- **Keywords:** LLM agents, Python, Docker, FastAPI
+- **Keywords:** Next.js, FastAPI, PostgreSQL, TypeScript, Docker

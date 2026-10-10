@@ -1,24 +1,26 @@
 name: Kalp Patel
-title: Full-Stack AI Systems Engineer | LLM Agents & Scalable Backends
+title: Full-Stack & AI Benchmark Engineer
 github: https://github.com/kalppatel
-hourly_rate_usd: 45
-minimum_project_budget_usd: 300
+linkedin: https://www.linkedin.com/in/kalp-patel-/
+hourly_rate_usd: 35
+minimum_project_budget_usd: 250
 stipend_minimum_monthly_usd: 500
 skills:
   primary:
   - Python
   - FastAPI
+  - TypeScript
   - Next.js
+  - React.js
+  - Node.js
   - PostgreSQL
   ai_and_ml:
-  - LLM Agents
-  - RAG Pipelines
-  - Vector Search
-  - Prompt Engineering
+  - LLM Agent Benchmarking
+  - Adversarial Test Suites
+  - Frontier AI Evaluation
   infrastructure:
   - Docker
-  - Git
-  - Database Optimization
+  - Containerized Environments
 preferences:
   roles:
   - Full-Stack Developer
