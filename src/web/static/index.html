@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobAI — Intelligent Lead & Proposal Engine</title>
+  <meta name="description" content="AI intelligence engine for finding freelance leads, software engineering internships, and drafting human proposals.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Lucide Vector Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="canvas">
+    <!-- Minimalist Top Navigation -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-mark" title="JobAI Assistant">
+          <svg class="logo-starburst" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C11.4 2 11 3.8 11 5.8C11 7.8 11.4 9 12 9C12.6 9 13 7.8 13 5.8C13 3.8 12.6 2 12 2Z" opacity="0.9" />
+            <path d="M12 15C11.4 15 11 16.2 11 18.2C11 20.2 11.4 22 12 22C12.6 22 13 20.2 13 18.2C13 16.2 12.6 15 12 15Z" opacity="0.9" />
+            <path d="M2 12C2 11.4 3.8 11 5.8 11C7.8 11 9 11.4 9 12C9 12.6 7.8 13 5.8 13C3.8 13 2 12.6 2 12Z" opacity="0.9" />
+            <path d="M15 12C15 11.4 16.2 11 18.2 11C20.2 11 22 11.4 22 12C22 12.6 20.2 13 18.2 13C16.2 13 15 12.6 15 12Z" opacity="0.9" />
+            <path d="M4.93 4.93C4.5 4.5 5.5 3.3 6.9 4.7C8.3 6.1 7.8 7.3 7.4 6.9C7 6.5 5.3 5.3 4.93 4.93Z" opacity="0.75" />
+            <path d="M14.2 14.2C13.8 13.8 14.6 12.6 16 14C17.4 15.4 16.9 16.6 16.5 16.2C16.1 15.8 14.6 14.6 14.2 14.2Z" opacity="0.75" />
+            <path d="M4.93 19.07C4.5 19.5 5.5 20.7 6.9 19.3C8.3 17.9 7.8 16.7 7.4 17.1C7 17.5 5.3 18.7 4.93 19.07Z" opacity="0.75" />
+            <path d="M14.2 9.8C13.8 10.2 14.6 11.4 16 10C17.4 8.6 16.9 7.4 16.5 7.8C16.1 8.2 14.6 9.4 14.2 9.8Z" opacity="0.75" />
+            <circle cx="12" cy="12" r="2.2" />
+          </svg>
+        </div>
+        <span class="logo-text">JobAI</span>
+      </div>
+
+      <div class="header-right">
+        <button class="btn-ghost" id="btn-toggle-drawer" onclick="toggleDrawer()" title="View Saved Leads">
+          <i data-lucide="inbox" class="icon-sm"></i>
+          <span>Opportunities</span>
+          <span class="count-pill" id="leads-count-pill">0</span>
+        </button>
+
+        <button class="btn-ghost" onclick="openOnboarding()" title="Profile & Preferences">
+          <i data-lucide="user" class="icon-sm"></i>
+          <span id="user-display-name">Profile Setup</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Centered Experience -->
+    <main class="chat-viewport" id="chat-viewport">
+      <div class="conversation-container" id="conversation-container">
+        
+        <!-- Center Optical Hero (Visible when empty, smoothly collapses when chatting) -->
+        <div class="center-hero" id="center-hero">
+          <div class="hero-animation-wrap">
+            <div class="hero-pulse-glow"></div>
+            <div class="hero-brand-mark">
+              <svg class="hero-starburst-large" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C11.4 2 11 3.8 11 5.8C11 7.8 11.4 9 12 9C12.6 9 13 7.8 13 5.8C13 3.8 12.6 2 12 2Z" opacity="0.9" />
+                <path d="M12 15C11.4 15 11 16.2 11 18.2C11 20.2 11.4 22 12 22C12.6 22 13 20.2 13 18.2C13 16.2 12.6 15 12 15Z" opacity="0.9" />
+                <path d="M2 12C2 11.4 3.8 11 5.8 11C7.8 11 9 11.4 9 12C9 12.6 7.8 13 5.8 13C3.8 13 2 12.6 2 12Z" opacity="0.9" />
+                <path d="M15 12C15 11.4 16.2 11 18.2 11C20.2 11 22 11.4 22 12C22 12.6 20.2 13 18.2 13C16.2 13 15 12.6 15 12Z" opacity="0.9" />
+                <path d="M4.93 4.93C4.5 4.5 5.5 3.3 6.9 4.7C8.3 6.1 7.8 7.3 7.4 6.9C7 6.5 5.3 5.3 4.93 4.93Z" opacity="0.75" />
+                <path d="M14.2 14.2C13.8 13.8 14.6 12.6 16 14C17.4 15.4 16.9 16.6 16.5 16.2C16.1 15.8 14.6 14.6 14.2 14.2Z" opacity="0.75" />
+                <path d="M4.93 19.07C4.5 19.5 5.5 20.7 6.9 19.3C8.3 17.9 7.8 16.7 7.4 17.1C7 17.5 5.3 18.7 4.93 19.07Z" opacity="0.75" />
+                <path d="M14.2 9.8C13.8 10.2 14.6 11.4 16 10C17.4 8.6 16.9 7.4 16.5 7.8C16.1 8.2 14.6 9.4 14.2 9.8Z" opacity="0.75" />
+                <circle cx="12" cy="12" r="2.2" />
+              </svg>
+            </div>
+          </div>
+
+          <h1 class="hero-heading">Where should we find opportunities today?</h1>
+          <p class="hero-subheading">Scrape high-intent freelance work, evaluate software internships, or craft tailored proposals.</p>
+
+          <!-- Quick Action Prompts -->
+          <div class="quick-prompts">
+            <button class="prompt-chip" onclick="sendPrompt('Scan Reddit & Hacker News right now for new freelance contracts')">
+              <i data-lucide="radar" class="icon-xs"></i>
+              <span>Scan HN & Reddit for paid leads</span>
+            </button>
+            <button class="prompt-chip" onclick="sendPrompt('Show my top opportunities with drafted proposals ready to send')">
+              <i data-lucide="sparkles" class="icon-xs"></i>
+              <span>Review top-fit leads & proposal drafts</span>
+            </button>
+            <button class="prompt-chip" onclick="sendPrompt('Find remote software engineering & AI internships')">
+              <i data-lucide="graduation-cap" class="icon-xs"></i>
+              <span>Find software & AI internships</span>
+            </button>
+            <button class="prompt-chip" onclick="sendPrompt('Audit my GitHub skills and suggest high-yield contract niches')">
+              <i data-lucide="bar-chart-2" class="icon-xs"></i>
+              <span>Audit skills & recommend rates</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Chat Messages Container -->
+        <div class="messages-flow" id="messages-flow"></div>
+      </div>
+    </main>
+
+    <!-- Bottom Anchored Prompt Console -->
+    <footer class="input-section">
+      <div class="input-card">
+        <textarea
+          id="chat-user-input"
+          class="chat-input-textarea"
+          placeholder="Ask anything, or paste a job posting to draft a tailored proposal..."
+          rows="1"
+          onkeydown="handleKey(event)"
+        ></textarea>
+
+        <div class="input-toolbar">
+          <div class="toolbar-left">
+            <button class="toolbar-btn" onclick="triggerDiscoveryScan()" id="btn-quick-scan" title="Run instant discovery scan">
+              <i data-lucide="refresh-cw" class="icon-xs" id="quick-scan-icon"></i>
+              <span>Run Live Discovery</span>
+            </button>
+          </div>
+
+          <div class="toolbar-right">
+            <span class="submit-hint">Enter to send • Shift + Enter for newline</span>
+            <button class="btn-send-round" id="btn-send-message" onclick="sendMessage()" title="Send">
+              <i data-lucide="arrow-up" class="icon-sm"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Slide-Out Leads Drawer -->
+  <aside class="leads-drawer" id="leads-drawer">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <i data-lucide="briefcase" class="icon-sm text-accent"></i>
+        <h3>Saved Opportunities</h3>
+        <span class="drawer-badge" id="drawer-total-count">0</span>
+      </div>
+      <button class="btn-close" onclick="toggleDrawer()">
+        <i data-lucide="x" class="icon-sm"></i>
+      </button>
+    </div>
+
+    <div class="drawer-filters">
+      <input type="text" id="drawer-search" placeholder="Filter by skill, title, budget..." oninput="filterDrawerLeads()" class="drawer-search-input">
+      <div class="drawer-filter-pills">
+        <button class="pill-btn active" data-src="all" onclick="setDrawerSource('all')">All</button>
+        <button class="pill-btn" data-src="hn" onclick="setDrawerSource('hn')">Hacker News</button>
+        <button class="pill-btn" data-src="reddit" onclick="setDrawerSource('reddit')">Reddit</button>
+      </div>
+    </div>
+
+    <div class="drawer-list" id="drawer-leads-list">
+      <!-- Populated via JS -->
+    </div>
+  </aside>
+  <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleDrawer()"></div>
+
+  <!-- AI Profile & Resume Intelligence Modal -->
+  <div class="modal-backdrop" id="onboarding-modal">
+    <div class="modal-card">
+      <div class="modal-card-header">
+        <div class="flex-center gap-2">
+          <i data-lucide="sparkles" class="icon-sm text-accent"></i>
+          <h4>AI Candidate Profile & Criteria</h4>
+        </div>
+        <button class="btn-close" onclick="closeOnboarding()">
+          <i data-lucide="x" class="icon-sm"></i>
+        </button>
+      </div>
+
+      <!-- Resume Smart Dropzone -->
+      <div class="resume-dropzone" id="resume-dropzone" onclick="document.getElementById('resume-file-input').click()">
+        <input type="file" id="resume-file-input" accept=".pdf,.txt,.md" style="display:none;" onchange="handleResumeUpload(event)">
+        <div class="dropzone-content" id="dropzone-default">
+          <div class="dropzone-icon-wrap">
+            <i data-lucide="file-up" class="dropzone-icon"></i>
+          </div>
+          <div class="dropzone-text">
+            <span class="dropzone-primary">Drop Resume (PDF or TXT) to Auto-Extract</span>
+            <span class="dropzone-secondary">Gemini parses your skills, experience, and links automatically</span>
+          </div>
+        </div>
+        <div class="dropzone-loading" id="dropzone-loading" style="display:none;">
+          <div class="spinner-sm"></div>
+          <span>Analyzing resume with Gemini & extracting profile...</span>
+        </div>
+      </div>
+
+      <form id="onboarding-form" onsubmit="submitOnboarding(event)">
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label">Full Name / Signature</label>
+            <input type="text" id="onboard-name" class="form-input" placeholder="e.g. Kalp Patel" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Rate ($ USD / hr)</label>
+            <input type="number" id="onboard-rate" class="form-input" placeholder="45" min="15" value="45" />
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label">GitHub Profile</label>
+            <input type="url" id="onboard-github" class="form-input" placeholder="https://github.com/kalppatel" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">LinkedIn Profile</label>
+            <input type="url" id="onboard-linkedin" class="form-input" placeholder="https://linkedin.com/in/kalppatel" />
+          </div>
+        </div>
+
+        <!-- Interactive Skills Tag Cloud -->
+        <div class="form-group">
+          <label class="form-label">Verified Tech Skills</label>
+          <div class="skills-manager">
+            <div class="skills-tag-list" id="skills-tag-list">
+              <!-- Rendered dynamic chips -->
+            </div>
+            <div class="skill-input-row">
+              <input type="text" id="skill-add-input" class="form-input-sm" placeholder="Type a skill & press Enter (e.g. Next.js, PyTorch)..." onkeydown="handleSkillAdd(event)">
+              <button type="button" class="btn-add-tag" onclick="addCurrentSkillInput()">+ Add</button>
+            </div>
+          </div>
+          <input type="hidden" id="onboard-skills" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Key Projects & Resume Highlights</label>
+          <textarea id="onboard-resume" class="form-textarea" rows="3" placeholder="Briefly highlight 2-3 flagship projects, impact metrics, or niche domains..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" onclick="closeOnboarding()">Cancel</button>
+          <button type="submit" class="btn-submit" id="btn-save-profile">
+            <i data-lucide="check" class="icon-xs"></i>
+            <span>Save & Recalibrate Engine</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
