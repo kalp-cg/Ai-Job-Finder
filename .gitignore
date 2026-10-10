@@ -1,0 +1,23 @@
+# Python environment
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Environment and secrets
+.env
+*.local
+
+# Database
+data/*.db
+data/assistant.db
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
