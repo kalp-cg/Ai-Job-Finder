@@ -66,6 +66,26 @@ async function loadProfile() {
     if (currentProfile.summary) {
       document.getElementById('onboard-resume').value = currentProfile.summary;
     }
+
+    // Dynamic Calibration Parameters Dashboard in Hero
+    const valResume = document.getElementById('val-resume');
+    if (valResume) {
+      valResume.textContent = data.has_resume ? `Resume Verified · ${currentSkills.length} Skills` : 'Drop Resume (PDF/MD)';
+    }
+    const dotResume = document.getElementById('dot-resume');
+    if (dotResume) {
+      dotResume.className = `param-status-dot ${data.has_resume ? 'ready' : ''}`;
+    }
+
+    const valRate = document.getElementById('val-rate');
+    if (valRate) {
+      valRate.textContent = `$${currentProfile.hourly_rate_usd || 35}/hr · Min $${currentProfile.minimum_project_budget_usd || 250}`;
+    }
+
+    const valGithub = document.getElementById('val-github');
+    if (valGithub && currentProfile.github) {
+      valGithub.textContent = currentProfile.github.replace('https://', '').replace('http://', '');
+    }
   } catch (err) {
     console.error('Error loading profile:', err);
   }
@@ -223,27 +243,32 @@ async function sendMessage() {
   }
 }
 
-function getLaceVortexSvg(extraClass = '') {
+function getSarthiChakraSvg(extraClass = '') {
   return `
-    <svg class="vortex-svg-icon ${extraClass}" viewBox="0 0 32 32" fill="none">
-      <path d="M16 3.5C9.1 3.5 3.5 9.1 3.5 16C3.5 19.4 4.8 22.5 7 24.8" stroke="url(#vtx-p)" stroke-width="2.6" stroke-linecap="round" />
-      <path d="M16 28.5C22.9 28.5 28.5 22.9 28.5 16C28.5 12.6 27.2 9.5 25 7.2" stroke="url(#vtx-m)" stroke-width="2.6" stroke-linecap="round" />
-      <path d="M10.2 16C10.2 12.8 12.8 10.2 16 10.2C18.1 10.2 20 11.3 21 13" stroke="url(#vtx-g)" stroke-width="2.3" stroke-linecap="round" />
-      <path d="M21.8 16C21.8 19.2 19.2 21.8 16 21.8C13.9 21.8 12 20.7 11 19" stroke="url(#vtx-p)" stroke-width="2.3" stroke-linecap="round" />
-      <circle cx="16" cy="16" r="2.2" fill="#8b5cf6" />
+    <svg class="sarthi-chakra-svg ${extraClass}" viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="13" stroke="url(#sarthi-live-rim)" stroke-width="2" stroke-linecap="round" stroke-dasharray="14 6" />
+      <path d="M16 16 C16 11 14 7 16 3" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
+      <path d="M16 16 C20 13 24 12 28.5 13" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
+      <path d="M16 16 C20 19 23 23 24.5 28" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
+      <path d="M16 16 C16 21 14 25 16 29" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
+      <path d="M16 16 C12 19 8 20 3.5 19" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
+      <path d="M16 16 C12 13 9 9 7.5 4" stroke="url(#sarthi-live-spoke)" stroke-width="2" stroke-linecap="round" />
+      <circle cx="16" cy="16" r="3.2" fill="url(#sarthi-live-hub)" />
+      <circle cx="16" cy="16" r="1.3" fill="#ffffff" />
       <defs>
-        <linearGradient id="vtx-p" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#a855f7" />
-          <stop offset="100%" stop-color="#6366f1" />
+        <linearGradient id="sarthi-live-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fbbf24" />
+          <stop offset="50%" stop-color="#ff5722" />
+          <stop offset="100%" stop-color="#f97316" />
         </linearGradient>
-        <linearGradient id="vtx-m" x1="100%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#ec4899" />
-          <stop offset="100%" stop-color="#8b5cf6" />
+        <linearGradient id="sarthi-live-spoke" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ff5722" />
+          <stop offset="100%" stop-color="#fbbf24" />
         </linearGradient>
-        <linearGradient id="vtx-g" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#f59e0b" />
-          <stop offset="100%" stop-color="#ec4899" />
-        </linearGradient>
+        <radialGradient id="sarthi-live-hub" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff5722" />
+          <stop offset="100%" stop-color="#c2410c" />
+        </radialGradient>
       </defs>
     </svg>
   `;
@@ -256,11 +281,11 @@ function appendMessage(role, content) {
   const row = document.createElement('div');
   row.className = `msg-row ${role}`;
 
-  // AI Avatar (LACE-style Cyber Vortex Logo)
+  // AI Avatar (SARTHI Chakra Logo)
   if (role === 'ai') {
     const avatar = document.createElement('div');
     avatar.className = 'ai-avatar';
-    avatar.innerHTML = getLaceVortexSvg();
+    avatar.innerHTML = getSarthiChakraSvg();
     row.appendChild(avatar);
   }
 
@@ -275,6 +300,15 @@ function appendMessage(role, content) {
   initLucide();
 }
 
+const SARTHI_THINKING_PHRASES = [
+  "Navigating market signals...",
+  "Evaluating candidate alignment...",
+  "Synthesizing strategic intelligence...",
+  "Calibrating opportunity fit...",
+  "Formulating high-conversion approach...",
+  "Consulting market radar..."
+];
+
 function appendThinkingIndicator() {
   const container = document.getElementById('messages-flow');
   const id = 'thinking-' + Date.now();
@@ -284,16 +318,39 @@ function appendThinkingIndicator() {
   row.className = 'msg-row ai thinking-row';
   row.innerHTML = `
     <div class="ai-avatar thinking-logo-spin">
-      ${getLaceVortexSvg('vortex-pulse-spin')}
+      ${getSarthiChakraSvg('chakra-thinking-spin')}
     </div>
     <div class="msg-content">
-      <div class="thinking-label">Thinking...</div>
+      <div class="thinking-label" id="label-${id}">${SARTHI_THINKING_PHRASES[0]}</div>
     </div>
   `;
 
   container.appendChild(row);
   scrollToBottom();
+
+  // Dynamic cycling thinking words like Claude / Perplexity
+  let phraseIdx = 0;
+  const timer = setInterval(() => {
+    const labelEl = document.getElementById(`label-${id}`);
+    if (!labelEl) {
+      clearInterval(timer);
+      return;
+    }
+    labelEl.style.transition = 'opacity 0.22s ease';
+    labelEl.style.opacity = '0';
+    setTimeout(() => {
+      phraseIdx = (phraseIdx + 1) % SARTHI_THINKING_PHRASES.length;
+      labelEl.textContent = SARTHI_THINKING_PHRASES[phraseIdx];
+      labelEl.style.opacity = '1';
+    }, 220);
+  }, 1700);
+
   return id;
+}
+
+function triggerDirectResumeUpload() {
+  const fileInput = document.getElementById('direct-resume-file');
+  if (fileInput) fileInput.click();
 }
 
 function removeElement(id) {

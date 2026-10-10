@@ -1,40 +1,40 @@
 :root {
   /* =========================================================================
-     LACE CYBER VIOLET & AMETHYST DESIGN SYSTEM
-     Deep Midnight Violet Canvas, Luminous Purple Sheen, Electric Violet Accents
+     MONOCHROME PURE BLACK & WHITE + WARM EMBER ACCENT DESIGN SYSTEM
+     Fixed Pitch Black Canvas, Crisp White Typography, Solar Coral Accent
      ========================================================================= */
-  --bg-pitch: #0c0a14;
-  --bg-surface: #120e20;
-  --bg-elevated: #181329;
-  --bg-card: #151024;
-  --bg-card-hover: #201a35;
+  --bg-pitch: #000000;
+  --bg-surface: #0a0a0c;
+  --bg-elevated: #121215;
+  --bg-card: #0f0f12;
+  --bg-card-hover: #18181c;
 
-  /* Hairline Violet Borders */
-  --border-subtle: rgba(139, 92, 246, 0.16);
-  --border-default: rgba(139, 92, 246, 0.30);
-  --border-bright: rgba(168, 85, 247, 0.55);
-  --border-focus: #8b5cf6;
+  /* Crisp Hairline Neutral Borders */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.16);
+  --border-bright: rgba(255, 255, 255, 0.32);
+  --border-focus: #ff5722;
 
-  /* Typography */
+  /* Typography: Pure Crisp White & Neutral Grays */
   --text-main: #ffffff;
-  --text-secondary: #c4b5fd;
-  --text-muted: #8b83a6;
-  --text-dim: #5c5573;
+  --text-secondary: #d4d4d8;
+  --text-muted: #8e8e93;
+  --text-dim: #52525b;
 
-  /* LACE Accents */
-  --accent: #8b5cf6;
-  --accent-hover: #a855f7;
-  --accent-gradient: linear-gradient(135deg, #7c3aed, #a855f7);
-  --accent-glow: rgba(139, 92, 246, 0.45);
-  --accent-subtle: rgba(139, 92, 246, 0.15);
-  --accent-border: rgba(139, 92, 246, 0.35);
+  /* The One Accent: Warm Ember / Solar Coral */
+  --accent: #ff5722;
+  --accent-hover: #f97316;
+  --accent-gradient: linear-gradient(135deg, #ff5722, #f97316);
+  --accent-glow: rgba(255, 87, 34, 0.40);
+  --accent-subtle: rgba(255, 87, 34, 0.12);
+  --accent-border: rgba(255, 87, 34, 0.35);
 
-  --accent-magenta: #ec4899;
-  --accent-gold: #f59e0b;
-  --accent-mint: #2dd4bf;
+  --accent-gold: #fbbf24;
+  --accent-mint: #10b981;
+  --accent-magenta: #f43f5e;
 
-  /* Fonts */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Fonts: Plus Jakarta Sans for elite human editorial feel */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   /* Radii */
@@ -53,7 +53,7 @@
 
 body {
   background-color: var(--bg-pitch);
-  background-image: radial-gradient(ellipse 90% 45% at 50% -10%, rgba(139, 92, 246, 0.28), transparent 75%);
+  background-image: radial-gradient(ellipse 80% 40% at 50% -5%, rgba(255, 87, 34, 0.14), transparent 70%);
   background-repeat: no-repeat;
   color: var(--text-main);
   font-family: var(--font-sans);
@@ -83,7 +83,7 @@ body {
   justify-content: space-between;
   padding: 0 24px;
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(18, 14, 32, 0.7);
+  background: rgba(10, 10, 12, 0.85);
   backdrop-filter: blur(14px);
   flex-shrink: 0;
   z-index: 10;
@@ -102,30 +102,27 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.5));
+  filter: drop-shadow(0 0 10px rgba(255, 87, 34, 0.45));
 }
 
-.logo-vortex {
+.logo-vortex,
+.sarthi-chakra {
   width: 26px;
   height: 26px;
-  animation: vortexBreathe 6s ease-in-out infinite;
+  animation: chakraSpinSlow 24s linear infinite;
   transform-origin: center;
 }
 
-@keyframes vortexBreathe {
-  0%, 100% {
-    transform: rotate(0deg) scale(1);
-  }
-  50% {
-    transform: rotate(180deg) scale(1.06);
-  }
+@keyframes chakraSpinSlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .logo-text {
   font-weight: 700;
   font-size: 1.02rem;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #ffffff, #c4b5fd);
+  background: linear-gradient(135deg, #ffffff, #d4d4d8);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -140,7 +137,7 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  background: rgba(24, 19, 41, 0.6);
+  background: rgba(18, 18, 21, 0.8);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   padding: 6px 14px;
@@ -155,18 +152,18 @@ body {
   background: var(--bg-elevated);
   border-color: var(--border-default);
   color: var(--text-main);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 0 12px rgba(255, 87, 34, 0.2);
 }
 
 .count-pill {
   background: var(--accent-subtle);
-  color: #c4b5fd;
+  color: #ff5722;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 600;
   padding: 1px 7px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--accent-border);
 }
 
 /* =========================================================================
@@ -217,7 +214,7 @@ body {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.6) 0%, rgba(236, 72, 153, 0.3) 50%, transparent 75%);
+  background: radial-gradient(circle, rgba(255, 87, 34, 0.45) 0%, rgba(249, 115, 22, 0.2) 50%, transparent 75%);
   filter: blur(24px);
   opacity: 0.6;
   animation: glowPulse 4s ease-in-out infinite;
@@ -235,17 +232,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0 16px rgba(139, 92, 246, 0.6));
+  filter: drop-shadow(0 0 16px rgba(255, 87, 34, 0.45));
 }
 
-.hero-vortex-large {
+.hero-vortex-large,
+.hero-chakra-large {
   width: 54px;
   height: 54px;
-  animation: vortexRotate 16s linear infinite;
-}
-
-@keyframes vortexRotate {
-  100% { transform: rotate(360deg); }
+  animation: chakraSpinSlow 32s linear infinite;
 }
 
 .hero-heading {
@@ -266,42 +260,103 @@ body {
   margin-bottom: 28px;
 }
 
-/* Quick Prompt Chips (LACE Pill Aesthetics) */
-.quick-prompts {
+/* Dynamic Calibration Parameters Panel */
+.parameter-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  max-width: 640px;
+  max-width: 680px;
 }
 
-.prompt-chip {
+.param-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(14, 14, 17, 0.85);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 13px 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.param-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.param-card:hover {
+  background: var(--bg-elevated);
+  border-color: rgba(255, 87, 34, 0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 87, 34, 0.12);
+}
+
+.param-card:hover::before {
+  opacity: 1;
+}
+
+.param-card-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(24, 19, 41, 0.7);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  text-align: left;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  gap: 8px;
 }
 
-.prompt-chip:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-default);
-  color: var(--text-main);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
-}
-
-.prompt-chip i {
+.param-icon-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--accent-subtle);
   color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.param-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: 1;
+}
+
+.param-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.param-status-dot.ready {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+.param-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+  line-height: 1.35;
+}
+
+.param-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
 }
 
 /* =========================================================================
@@ -327,13 +382,13 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* User Message: Clean, Right-Aligned, No Clunky Badge */
+/* User Message: Clean, Right-Aligned, High-Contrast Carbon Neutral */
 .msg-row.user {
   justify-content: flex-end;
 }
 
 .msg-row.user .msg-content {
-  background: linear-gradient(135deg, rgba(24, 19, 41, 0.95), rgba(34, 27, 56, 0.95));
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   padding: 11px 18px;
   border-radius: var(--radius-lg);
@@ -342,10 +397,10 @@ body {
   font-size: 0.92rem;
   line-height: 1.55;
   max-width: 82%;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
 }
 
-/* AI Message: Left-Aligned, LACE Vortex Logo Avatar */
+/* AI Message: Left-Aligned, Warm Ember Vortex Logo Avatar */
 .msg-row.ai {
   justify-content: flex-start;
 }
@@ -358,10 +413,11 @@ body {
   justify-content: center;
   flex-shrink: 0;
   margin-top: 2px;
-  filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.4));
+  filter: drop-shadow(0 0 6px rgba(255, 87, 34, 0.4));
 }
 
-.vortex-svg-icon {
+.vortex-svg-icon,
+.sarthi-chakra-svg {
   width: 24px;
   height: 24px;
 }
@@ -379,15 +435,16 @@ body {
 }
 
 .thinking-logo-spin {
-  filter: drop-shadow(0 0 12px rgba(139, 92, 246, 0.7));
+  filter: drop-shadow(0 0 12px rgba(255, 87, 34, 0.65));
 }
 
-.vortex-pulse-spin {
-  animation: vortexThinkingSpin 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.vortex-pulse-spin,
+.chakra-thinking-spin {
+  animation: chakraThinkingSpin 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   transform-origin: center;
 }
 
-@keyframes vortexThinkingSpin {
+@keyframes chakraThinkingSpin {
   0% {
     transform: rotate(0deg) scale(0.96);
   }
@@ -423,12 +480,12 @@ body {
   flex-direction: column;
   gap: 10px;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .lead-result-card:hover {
   border-color: var(--border-bright);
-  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.2);
+  box-shadow: 0 6px 24px rgba(255, 87, 34, 0.15);
 }
 
 .lead-card-header {
@@ -536,7 +593,8 @@ body {
 }
 
 .input-card {
-  background: rgba(18, 14, 32, 0.85);
+  position: relative;
+  background: rgba(10, 10, 12, 0.94);
   backdrop-filter: blur(18px);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
@@ -544,13 +602,63 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.6), 0 0 20px rgba(139, 92, 246, 0.12);
-  transition: all 0.2s ease;
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.7);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  overflow: hidden;
+}
+
+/* Animated Top Energy Line Filling Up */
+.input-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #ff5722 25%, #fbbf24 50%, #ff5722 75%, transparent 100%);
+  background-size: 200% 100%;
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  z-index: 2;
+}
+
+/* Animated Bottom Subtle Counter-Beam */
+.input-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 87, 34, 0.6) 50%, transparent 100%);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+  z-index: 2;
 }
 
 .input-card:focus-within {
-  border-color: var(--border-bright);
-  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.65), 0 0 24px rgba(139, 92, 246, 0.25);
+  border-color: rgba(255, 87, 34, 0.5);
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.85), 0 0 28px rgba(255, 87, 34, 0.25);
+}
+
+.input-card:focus-within::before {
+  opacity: 1;
+  transform: scaleX(1);
+  animation: lineTraceSweep 2.2s linear infinite;
+}
+
+.input-card:focus-within::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+@keyframes lineTraceSweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .chat-input-textarea {
@@ -582,7 +690,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(24, 19, 41, 0.6);
+  background: rgba(18, 18, 21, 0.8);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   padding: 4px 10px;
@@ -632,7 +740,7 @@ body {
 
 .btn-send-round:hover {
   transform: scale(1.08);
-  box-shadow: 0 0 22px rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 22px rgba(255, 87, 34, 0.6);
 }
 
 /* =========================================================================
@@ -698,12 +806,13 @@ body {
 
 .drawer-badge {
   background: var(--accent-subtle);
-  color: #c4b5fd;
+  color: #ff5722;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 600;
   padding: 1px 7px;
   border-radius: var(--radius-pill);
+  border: 1px solid var(--accent-border);
 }
 
 .drawer-filters {
@@ -766,7 +875,7 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
   z-index: 200;
   display: none;
@@ -787,7 +896,7 @@ body {
   max-height: 90vh;
   overflow-y: auto;
   padding: 24px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), 0 0 24px rgba(139, 92, 246, 0.2);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 24px rgba(255, 87, 34, 0.15);
 }
 
 .modal-card-header {
@@ -813,7 +922,7 @@ body {
 /* Smart Resume Dropzone */
 .resume-dropzone {
   border: 1.5px dashed var(--border-bright);
-  background: rgba(12, 10, 20, 0.6);
+  background: rgba(10, 10, 12, 0.8);
   border-radius: var(--radius-md);
   padding: 16px 14px;
   margin-bottom: 16px;
@@ -824,8 +933,8 @@ body {
 
 .resume-dropzone:hover {
   border-color: var(--accent);
-  background: rgba(139, 92, 246, 0.08);
-  box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
+  background: rgba(255, 87, 34, 0.06);
+  box-shadow: 0 0 16px rgba(255, 87, 34, 0.18);
 }
 
 .dropzone-content {
@@ -1039,7 +1148,7 @@ body {
 
 .btn-submit:hover {
   transform: scale(1.02);
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.55);
+  box-shadow: 0 0 20px rgba(255, 87, 34, 0.55);
 }
 
 /* Utilities */

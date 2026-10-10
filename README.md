@@ -1,6 +1,6 @@
-# Job + Freelance Assistant
+# SARTHI — AI Career & Opportunity Navigator
 
-A personal engineering tool that monitors public developer job requests and internships, scores them against your profile, and drafts tailored, high-converting replies. **You review and send everything by hand.**
+An autonomous engineering copilot and navigator that monitors public developer job requests and internships across Hacker News & Reddit, scores them against your profile, and drafts tailored, high-converting replies. **You review and send everything by hand.**
 
 > [!IMPORTANT]
 > **Safety Boundary:** This tool is strictly read-only. It **never** posts, comments, DMs, applies, or emails anyone automatically. All drafts are prepared for your manual review to keep your accounts secure and ensure thoughtful replies.

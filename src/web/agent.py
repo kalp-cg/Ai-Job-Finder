@@ -296,13 +296,31 @@ def handle_user_message(user_msg: str, conversation_history: Optional[List[Dict[
 
         if not has_resume or not has_github:
             return (
-                f"Hey {user_name}! I'm active and ready to hunt opportunities for you.\n\n"
-                f"Whenever you're ready, you can drop your **Resume** or link your **GitHub / LinkedIn** in the Profile modal at the top right to sharpen match accuracy.\n\n"
+                f"Hey {user_name}! I am SARTHI, your strategic career and opportunity navigator.\n\n"
+                f"Whenever you're ready, drop your Resume or link your GitHub / LinkedIn in the Profile modal at the top right to sharpen match accuracy.\n\n"
                 f"What are we targeting right now—freelance client contracts or software internships?"
             )
         return (
-            f"Hey {user_name}! All systems are active and calibrated to your skills.\n\n"
+            f"Hey {user_name}! SARTHI is active and calibrated to your skills.\n\n"
             f"What would you like to explore today—run a fresh lead scan, inspect top opportunities, or draft a proposal for a client post?"
+        )
+
+    # Intent 0.3: Parameter Calibration / Setup Inquiry
+    if any(q in msg_lower for q in ["parameter", "parameters", "what do you need", "how do you work", "what info", "setup"]):
+        return (
+            "SARTHI navigates opportunities using 4 core calibration parameters:\n\n"
+            "1. Resume Intelligence: Extracts verified skills and past case studies to ensure high matchmaking fit.\n"
+            "2. Proof of Work: GitHub & LinkedIn URLs to cite real projects in proposal pitches.\n"
+            "3. Target Rate & Budget Floor: Filters out lowball postings (currently set to $35/hr, min $250).\n"
+            "4. Market Scope: Live discovery across Hacker News and Reddit.\n\n"
+            "Drop your Resume directly onto the card above or click Profile Setup to calibrate."
+        )
+
+    # Intent 0.4: Agent Identity (Who are you / What is Sarthi)
+    if any(q in msg_lower for q in ["who are you", "what is your name", "what is sarthi", "about you"]):
+        return (
+            "I am SARTHI, your strategic opportunity navigator. Like a trusted charioteer in the competitive freelance and career arena, "
+            "I scout Hacker News and Reddit 24/7, evaluate high-budget postings against your skills, and craft tailored, winning proposals."
         )
 
     # Intent 0.5: Identity / Name Check (Accurate, Direct, No Emojis)
@@ -381,7 +399,8 @@ def handle_user_message(user_msg: str, conversation_history: Optional[List[Dict[
 
     # General Conversational response with Gemini
     llm = get_llm_client()
-    system_instruction = f"""You are JobAI, a sharp, elite career and freelance advisor with the elegance and conciseness of Claude.
+    system_instruction = f"""You are SARTHI, a sharp, elite career and freelance navigator for {profile.get('name', 'the developer')}.
+Like a trusted charioteer and strategic guide, you help navigate opportunities with precision and clarity.
 
 Candidate Context:
 - Name: {profile.get('name', 'Developer')}
@@ -392,7 +411,8 @@ STRICT RESPONSE RULES:
 1. NEVER regurgitate the user's resume back to them unless explicitly asked.
 2. NEVER output 4-point numbered lists of what services you can provide for simple questions.
 3. Be remarkably concise, human, and direct (1-3 sentences max).
-4. If they ask about jobs or freelance work, answer directly and suggest ONE crisp next step.
+4. Zero emojis in output.
+5. If they ask about jobs or freelance work, answer directly and suggest ONE crisp next step.
 """
 
     if llm.is_available:
@@ -407,6 +427,6 @@ STRICT RESPONSE RULES:
             return response.strip()
 
     return (
-        f"I'm here to help you identify contracts, evaluate internships, and draft winning proposals.\n\n"
-        f"Ask me to **'scan leads'**, **'show top opportunities'**, or paste a job post to generate a custom proposal."
+        f"I am SARTHI, your opportunity navigator. I'm here to help you identify contracts, evaluate internships, and draft winning proposals.\n\n"
+        f"Ask me to 'scan leads', 'show top opportunities', or paste a job post to generate a custom proposal."
     )

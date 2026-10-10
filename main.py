@@ -207,9 +207,9 @@ def show_tracker() -> None:
 
 
 def start_web_server(host: str = "127.0.0.1", port: int = 8000):
-    """Start local Claude-style web interface."""
+    """Start local SARTHI web interface."""
     import uvicorn
-    print(f"\n🚀 Starting Job Assistant Claude Web App at http://{host}:{port}")
+    print(f"\nStarting SARTHI — AI Opportunity Navigator at http://{host}:{port}")
     print("Open your browser at: http://localhost:8000")
     print("Press Ctrl+C to stop the server.\n")
     uvicorn.run("src.web.app:app", host=host, port=port, reload=False)

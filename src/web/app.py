@@ -21,7 +21,7 @@ from src.web.agent import (
     parse_resume_file,
 )
 
-app = FastAPI(title="Job + Freelance AI Assistant", version="1.0.0")
+app = FastAPI(title="SARTHI — AI Career & Opportunity Navigator", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
