@@ -1,0 +1,48 @@
+reddit:
+  subreddits:
+    - "forhire"
+    - "freelance_forhire"
+    - "webdev"
+    - "startups"
+    - "SideProject"
+    - "Python"
+  post_limit_per_sub: 25
+  flair_allowlist:
+    - "Hiring"
+    - "Job"
+  flair_blocklist:
+    - "For Hire"
+    - "[For Hire]"
+    - "Seeking Work"
+
+hacker_news:
+  query_terms:
+    - "Ask HN: Freelancer? Seeking freelancer?"
+    - "Ask HN: Who wants to be hired?"
+    - "Seeking freelancer"
+  max_comments_to_scan: 60
+
+search_keywords:
+  - "hiring developer"
+  - "need a developer"
+  - "looking for developer"
+  - "freelance python"
+  - "build a website"
+  - "api integration"
+  - "mvp developer"
+  - "contract engineer"
+
+blocked_keywords:
+  - "unpaid"
+  - "equity only"
+  - "rev share"
+  - "revenue share"
+  - "exposure"
+  - "for hire"
+  - "[for hire]"
+  - "portfolio review"
+  - "crypto telegram dm"
+
+max_lead_age_hours: 48
+minimum_score_threshold: 7
+max_digest_leads: 10

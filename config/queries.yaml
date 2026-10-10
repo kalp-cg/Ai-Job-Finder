@@ -1,0 +1,21 @@
+internships:
+  keywords:
+    - "Software Engineer Intern"
+    - "Backend Engineer Intern"
+    - "Full Stack Intern"
+    - "AI Engineer Intern"
+    - "Python Developer Intern"
+  locations:
+    - "Remote"
+    - "Worldwide"
+    - "Hybrid"
+  boards:
+    - name: "Work at a Startup"
+      url: "https://www.workatastartup.com/jobs"
+    - name: "Greenhouse"
+      url: "https://boards.greenhouse.io"
+    - name: "Lever"
+      url: "https://jobs.lever.co"
+    - name: "Ashby"
+      url: "https://jobs.ashbyhq.com"
+  minimum_stipend_usd: 500
