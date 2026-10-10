@@ -1,7 +1,8 @@
 """
 Ranking without LLM calls, so thousands of postings can be scored on every search.
 
-score (0-10) = 10 x (0.45 relevance + 0.15 pay fit + 0.15 location fit + 0.15 freshness + 0.10 experience fit)
+score (0-10) = 10 x relevance^0.7 x (0.55 + 0.45 x fit) x (0.7 + 0.3 x source trust)
+  where fit blends pay fit (15), location fit (15), freshness (15) and experience fit (10).
 
 - relevance: skill coverage (query skills found in the posting's skills / title) blended with
   BM25 over title (x3), skills (x2) and description for any free-text words.
@@ -30,8 +31,8 @@ LOCATION_WORDS = INDIA_WORDS + ["usa", "us", "uk", "europe", "canada", "germany"
                                 "new york", "san francisco", "berlin", "dubai"]
 
 
-TECH_ROLE_RE = re.compile(r"engineer|developer|\bdev\b|software|programmer|\bsde\b|full[- ]?stack|front[- ]?end|back[- ]?end|web|mobile|android|ios|data|machine learning|\bml\b|\bai\b|devops|cloud|platform|\bqa\b|test|research|scien|analyst|design|product|security|technolog|\bit\b|computer|coding|python|react|java", re.I)
-OFF_ROLE_RE = re.compile(r"hardware|firmware|mechanical|electrical|civil|chemical|manufactur|sales|marketing|account(ant|ing)|customer|recruit|\bhr\b|human resource|finance|legal|nurs|clinical|supply chain|operations|logistics|transcription|annotat|writer|content|business development|teacher|tutor", re.I)
+TECH_ROLE_RE = re.compile(r"engineer|engineering|developer|\bdev\b|software|programmer|\bsde\b|full[- ]?stack|front[- ]?end|back[- ]?end|\bweb\b|mobile|android|\bios\b|data scien|data engineer|machine learning|\bml\b|\bai\b|devops|cloud|platform|\bqa\b|\bsdet\b|research|scientist|security|computer vision|nlp|coding|python|react|java|node|golang|rust", re.I)
+OFF_ROLE_RE = re.compile(r"hardware|firmware|mechanical|electrical|civil|chemical|manufactur|sales|marketing|account(ant|ing)|customer|recruit|talent acquisition|\bhr\b|human resource|finance|legal|nurs|clinical|supply chain|operations|\bops\b|logistics|procurement|transcription|annotat|writer|content|video|editor|graphic|social media|influencer|brand|business development|\bbda\b|founder.?s office|ceo.?s office|management trainee|teacher|tutor|community|partnership", re.I)
 SENIOR_RE = re.compile(r"\b(senior|sr\.?|staff|principal|lead|manager|director|head|vp|architect)\b", re.I)
 
 
@@ -40,9 +41,38 @@ def remote_open_to(location: str, wanted: List[str]) -> bool:
     loc = (location or "").lower()
     if not loc or loc in ("remote", "remote (india)") or re.search(r"worldwide|anywhere|global|international", loc):
         return True
-    if "india" in wanted and any(w in loc for w in INDIA_WORDS):
+    if "india" in wanted and any(re.search(rf"\b{w}\b", loc) for w in INDIA_WORDS):
         return True
-    return any(w in loc for w in wanted if w != "remote")
+    return any(re.search(rf"\b{re.escape(w)}\b", loc) for w in wanted if w != "remote")
+
+
+# How much to trust each source before any outcomes are known (0-1). Direct-from-company beats aggregators.
+SOURCE_PRIOR = {"careers": 1.0, "yc": 0.95, "simplify": 0.85, "hn": 0.8, "muse": 0.8, "reddit": 0.7,
+                "remotive": 0.7, "remoteok": 0.7, "jobicy": 0.7, "himalayas": 0.7, "unstop": 0.45}
+RESPONDED = {"replied", "won", "interviewing", "offer"}
+APPLIED = RESPONDED | {"contacted", "applied", "rejected", "lost"}
+
+
+def learned_trust(rows: List[Dict[str, Any]], strength: float = 6.0) -> Dict[str, float]:
+    """
+    Blend each source's prior with how often your own applications from it got a response.
+    Beta-style smoothing: trust = (responses + strength*prior) / (applications + strength),
+    so a source needs several real outcomes before it moves far from its prior.
+    """
+    applied: Dict[str, int] = {}
+    responded: Dict[str, int] = {}
+    for row in rows:
+        if row.get("status") in APPLIED:
+            src = row.get("source")
+            applied[src] = applied.get(src, 0) + 1
+            responded[src] = responded.get(src, 0) + (row.get("status") in RESPONDED)
+    trust = dict(SOURCE_PRIOR)
+    for src, n in applied.items():
+        prior = SOURCE_PRIOR.get(src, 0.7)
+        # Typical response rates are far below 100%, so scale observed rate by an expected ~25% baseline.
+        observed = min(1.0, (responded.get(src, 0) / n) / 0.25)
+        trust[src] = (observed * n + strength * prior) / (n + strength)
+    return trust
 
 
 @dataclass
@@ -58,6 +88,7 @@ class Query:
     experience_years: Optional[float] = None
     max_age_days: int = 45
     note: Optional[str] = None
+    trust: Optional[Dict[str, float]] = None
 
     def chips(self) -> List[str]:
         out = []
@@ -219,11 +250,12 @@ def _money(monthly_usd: float, inr_per_usd: float, prefer_inr: bool) -> str:
 
 
 def rank(items: List[Dict[str, Any]], q: Query, inr_per_usd: float = 88.0, prefer_inr: bool = False,
-         limit: int = 50, min_score: float = 0.0) -> List[Dict[str, Any]]:
+         limit: int = 50, min_score: float = 0.0, trust: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
     """
     Filter, score and de-duplicate items for a query. Returns copies with 'score' and 'reasons'.
     Locations are a hard filter; if that leaves fewer than 3 results they become a soft preference.
     """
+    q.trust = trust or SOURCE_PRIOR
     strict = _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location=True)
     if len(strict) >= 3 or not q.locations:
         return strict
@@ -253,7 +285,9 @@ def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
             except ValueError:
                 pass
         age = _age_days(it.get("posted_at") or it.get("first_seen_at"))
-        if age is not None and age > q.max_age_days and it.get("status", "new") == "new":
+        # Company boards and YC list only roles that are still open, so age lowers freshness but never hides them.
+        live_board = it.get("source") in ("careers", "yc")
+        if age is not None and age > q.max_age_days and it.get("status", "new") == "new" and not live_board:
             continue
         if q.min_monthly_usd and it.get("pay_monthly_usd") == 0:
             continue
@@ -284,13 +318,17 @@ def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
                 reasons.append("Matches " + ", ".join((strong + weak)[:4]))
         else:
             coverage = 0.6
-        relevance = coverage if not terms else 0.6 * coverage + 0.4 * (bm / bm_max)
-        if q.skills and not item_skills and not terms:
-            relevance = 0.35 if TECH_ROLE_RE.search(title) else 0.1  # title-only listings
-        if OFF_ROLE_RE.search(title) and not re.search(r"software|developer|full[- ]?stack|web", title, re.I):
-            relevance *= 0.3
+        if terms:
+            coverage = 0.7 * coverage + 0.3 * (bm / bm_max)
+        tech_query = bool(q.skills) or any(t in ("frontend", "backend", "fullstack", "full-stack", "web", "mobile", "ml", "ai", "devops", "cloud", "developer", "engineer", "software", "data") for t in q.terms)
+        # Half of relevance is "is this the kind of role you do" (from the title), half is skill/keyword overlap.
+        # Title-only listings (no description) still rank on their title instead of falling to zero.
+        title_fit = 1.0 if (TECH_ROLE_RE.search(title) or not tech_query) else 0.0
+        relevance = 0.5 * title_fit + 0.5 * coverage
+        if OFF_ROLE_RE.search(title) and not re.search(r"software|developer|engineer|full[- ]?stack|web", title, re.I):
+            relevance *= 0.2 if tech_query else 0.6
         elif not TECH_ROLE_RE.search(title):
-            relevance *= 0.6
+            relevance *= 0.35 if tech_query else 0.8
         if SENIOR_RE.search(title) and (q.experience_years is None or q.experience_years < 4) and "job" not in q.kinds:
             relevance *= 0.5
 
@@ -316,9 +354,9 @@ def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
             loc_fit = 1.0
         elif it.get("remote") and ("remote" in wanted or "india" in wanted) and remote_open_to(loc, wanted):
             loc_fit = 1.0
-        elif "india" in wanted and any(w in loc for w in INDIA_WORDS):
+        elif "india" in wanted and any(re.search(rf"\b{w}\b", loc) for w in INDIA_WORDS):
             loc_fit = 1.0
-        elif any(w in loc for w in wanted if w not in ("remote", "india")):
+        elif any(re.search(rf"\b{re.escape(w)}\b", loc) for w in wanted if w not in ("remote", "india")):
             loc_fit = 1.0
         else:
             loc_fit = 0.1
@@ -346,7 +384,13 @@ def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
             exp_fit = max(0.0, 1 - (need - q.experience_years) / 2)
             reasons.append(f"Asks {need:g} yr experience")
 
-        score = 10 * (0.45 * relevance + 0.15 * pay_fit + 0.15 * loc_fit + 0.15 * fresh + 0.10 * exp_fit)
+        source_trust = (q.trust or SOURCE_PRIOR).get(it.get("source"), 0.7)
+        if it.get("source") in ("careers", "yc"):
+            reasons.insert(0, f"Direct from {it.get('company')}" + ("'s careers page" if it.get("source") == "careers" else " on YC"))
+        # Relevance gates everything else: a fresh, well-paid role that isn't for you must not score well.
+        fit = (0.15 * pay_fit + 0.15 * loc_fit + 0.15 * fresh + 0.10 * exp_fit) / 0.55
+        base = (max(relevance, 0.0) ** 0.7) * (0.55 + 0.45 * fit)
+        score = 10 * base * (0.7 + 0.3 * source_trust)
         results.append({**it, "score": round(score, 1), "reasons": reasons})
 
     results.sort(key=lambda r: r["score"], reverse=True)

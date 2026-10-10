@@ -20,7 +20,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.core.db import (
+    delete_company,
     get_lead,
+    list_companies,
     get_opportunity,
     get_top_leads,
     init_db,
@@ -33,7 +35,7 @@ from src.core.db import (
 from src.core.llm import get_llm_client
 from src.opportunities import mailer
 from src.opportunities.normalize import detect_kind, find_email, is_remote
-from src.opportunities.ranking import Query, parse_query, profile_query, rank
+from src.opportunities.ranking import Query, learned_trust, parse_query, profile_query, rank
 from src.opportunities.refresh import is_running, refresh_sources
 from src.opportunities.sources import SOURCES
 from src.opportunities.state import load_state, now_iso, update_state
@@ -57,7 +59,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 LEAD_TAB = {"new": "new", "contacted": "sent", "replied": "sent", "won": "won", "lost": "passed"}
 OPP_TAB = {"new": "new", "applied": "sent", "interviewing": "sent", "offer": "won", "rejected": "passed", "passed": "passed"}
-SOURCE_LABELS = {"hn": "Hacker News", "reddit": "Reddit", **{k: v["label"] for k, v in SOURCES.items()}}
+SOURCE_LABELS = {"hn": "Hacker News", "reddit": "Reddit", "careers": "Company careers", "yc": "YC",
+                 **{k: v["label"] for k, v in SOURCES.items()}}
 QUEUE_SIZE = 60
 QUEUE_MIN_SCORE = 5.0
 
@@ -159,7 +162,9 @@ def opp_item(o: Dict[str, Any]) -> Dict[str, Any]:
         "type": "opp",
         "kind": o.get("kind"),
         "source": o.get("source"),
-        "source_label": SOURCE_LABELS.get(o.get("source"), o.get("source")),
+        "source_label": (f"{o.get('company')} careers" if o.get("source") == "careers"
+                         else f"{o.get('company')} on YC" if o.get("source") == "yc"
+                         else SOURCE_LABELS.get(o.get("source"), o.get("source"))),
         "title": o.get("title"),
         "company": o.get("company"),
         "url": o.get("url"),
@@ -183,6 +188,12 @@ def opp_item(o: Dict[str, Any]) -> Dict[str, Any]:
         "active": bool(o.get("active", 1)),
         "is_sample": False,
     }
+
+
+def current_trust(opps: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Source trust learned from your own outcomes on feed postings and HN/Reddit leads."""
+    leads = [{"source": l["source"], "status": l["status"]} for l in get_top_leads(limit=1000, min_score=0) if "sample_" not in (l.get("url") or "")]
+    return learned_trust(opps + leads)
 
 
 def get_item(ref: str) -> Dict[str, Any]:
@@ -307,11 +318,13 @@ def list_items():
 
     items = [lead_item(l) for l in get_top_leads(limit=200, min_score=7)]
 
+    disabled = set(state["settings"]["disabled_sources"])
     opps = list_opportunities()
-    fresh = [o for o in opps if o["status"] == "new" and o["active"]]
+    fresh = [o for o in opps if o["status"] == "new" and o["active"] and o["source"] not in disabled]
     acted = [o for o in opps if o["status"] != "new"]
     pq = profile_query(profile, rate)
-    items += [opp_item(o) for o in rank(fresh, pq, rate, prefer_inr, limit=QUEUE_SIZE, min_score=QUEUE_MIN_SCORE)]
+    trust = current_trust(opps)
+    items += [opp_item(o) for o in rank(fresh, pq, rate, prefer_inr, limit=QUEUE_SIZE, min_score=QUEUE_MIN_SCORE, trust=trust)]
     items += [opp_item(o) for o in acted]  # already acted on: keep regardless of filters
     return {"items": items, "profile_query": pq.chips(), "total_postings": len(opps)}
 
@@ -365,7 +378,10 @@ def search_items(text: str, limit: int = 8) -> Dict[str, Any]:
     rate = state["settings"]["inr_per_usd"]
     profile = load_profile_data()
     q = parse_query(text, profile, rate)
-    results = rank([o for o in list_opportunities() if o["active"]], q, rate, _prefer_inr(profile), limit=limit, min_score=5.0)
+    disabled = set(state["settings"]["disabled_sources"])
+    opps = list_opportunities()
+    results = rank([o for o in opps if o["active"] and o["source"] not in disabled], q, rate, _prefer_inr(profile), limit=limit, min_score=5.0,
+                   trust=current_trust(opps))
     return {"query": q, "results": [opp_item(r) for r in results]}
 
 
@@ -382,6 +398,10 @@ def chat_endpoint(req: ChatRequest):
     if is_scan_request(message.lower()):
         return {"reply": None, "action": "scan"}
 
+    target = parse_track_request(message)
+    if target:
+        return track_reply(*target)
+
     q = parse_query(message, load_profile_data())
     if (q.kinds or q.skills) and SEARCH_INTENT.search(message) and len(message) < 400:
         found = search_items(message)
@@ -393,6 +413,119 @@ def chat_endpoint(req: ChatRequest):
         return {"reply": reply, "note": q.note, "chips": q.chips(), "results": results, "search_text": message}
 
     return {"reply": handle_user_message(message, req.history)}
+
+
+# ---------------------------------------------------------------- companies
+
+TRACK_RE = re.compile(r"^\s*(?:please\s+)?(?:track|watch|follow|add company|monitor)\s+(?:company\s+)?(.+?)\s*$", re.I | re.S)
+URL_RE = re.compile(r"https?://[^\s)>\]]+")
+
+
+def parse_track_request(message: str):
+    """
+    ('Company', website or None) when the user asks to watch a company or pastes a hiring post
+    (e.g. from LinkedIn). SARTHI never opens LinkedIn itself; it only reads what you paste.
+    """
+    urls = URL_RE.findall(message)
+    linkedin = [u for u in urls if "linkedin.com" in u]
+    others = [u for u in urls if "linkedin.com" not in u]
+    m = TRACK_RE.match(message)
+    if m and len(m.group(1)) < 80:
+        target = m.group(1).strip().rstrip(".")
+        if URL_RE.match(target):
+            host = re.sub(r"^www\.", "", target.split("/")[2])
+            return (host.split(".")[0].capitalize(), target)
+        return (target, others[0] if others else None)
+
+    is_post = bool(linkedin) or (len(message) > 120 and re.search(r"\bhiring\b|\bintern(ship)?s?\b|\bopenings?\b|\bjoin (our|us)\b", message, re.I))
+    if not is_post:
+        return None
+    company = None
+    for u in linkedin:
+        mm = re.search(r"linkedin\.com/company/([\w-]+)", u)
+        if mm:
+            company = mm.group(1).replace("-", " ").title()
+    if not company:
+        company = extract_company_name(message)
+    if not company:
+        for u in linkedin:
+            mm = re.search(r"linkedin\.com/posts/([a-z0-9-]+)_", u)
+            if mm:
+                company = mm.group(1).replace("-", " ").title()
+    if not company:
+        return None
+    return (company, others[0] if others else None)
+
+
+def extract_company_name(text: str) -> Optional[str]:
+    llm = get_llm_client()
+    if llm.is_available:
+        raw = llm.generate_text(
+            f"Which company is hiring in this post? Reply with only the company name, or NONE.\n\n{text[:3000]}",
+            system_instruction="Reply with just the company name or NONE.",
+        )
+        name = (raw or "").strip().strip('"').strip()
+        if name and name.upper() != "NONE" and len(name) < 60:
+            return name
+    for rx in (r"\b([A-Z][\w&.\-]*(?:\s[A-Z][\w&.\-]*){0,2}) is hiring", r"\b(?:at|join)\s+([A-Z][\w&.\-]*(?:\s[A-Z][\w&.\-]*){0,2})"):
+        mm = re.search(rx, text)
+        if mm:
+            return mm.group(1)
+    return None
+
+
+def track_reply(name: str, website: Optional[str]) -> Dict[str, Any]:
+    from src.opportunities.companies import track_company
+    kinds = ((load_profile_data().get("search") or {}).get("kinds")) or ["internship", "job"]
+    result = track_company(name, website, kinds)
+    boards = result["boards"]
+    if boards:
+        where = " and ".join(f"their {b['label']} board" if b["ats"] not in ("yc", "jsonld", "html") else ("their YC page" if b["ats"] == "yc" else "their careers page") for b in boards)
+        reply = (f"Watching **{result['name']}**. I found {where}: {result['open_roles']} open roles, "
+                 f"{result['matches']} fit what you're looking for.")
+        reply += " I'll check them again on every scan." if result["matches"] else " I'll tell you when a role that fits shows up."
+    elif result.get("website"):
+        reply = (f"I found {result['name']}'s website ({result['website']}) but no public careers page or hiring system yet. "
+                 "Some companies only post on LinkedIn. I'll check their site again every week.")
+    else:
+        reply = (f"I couldn't find a website or careers board for {result['name']}. "
+                 "Send me their website, like \"track example.com\", and I'll look there.")
+    from src.opportunities.companies import _norm
+    opps = [o for o in list_opportunities() if _norm(o["company"]) == _norm(result["name"]) and o["active"] and o["status"] == "new"]
+    profile = load_profile_data()
+    ranked = rank(opps, Query(skills=profile_query(profile).skills, max_age_days=100000), prefer_inr=_prefer_inr(profile), limit=8)
+    return {"reply": reply, "results": [opp_item(o) for o in ranked]}
+
+
+class CompanyRequest(BaseModel):
+    name: str
+    website: Optional[str] = None
+
+
+@app.get("/api/companies")
+def get_companies():
+    rows = [r for r in list_companies() if r["discovery_state"] != "duplicate"]
+    boards = [r for r in rows if r["ats"]]
+    return {
+        "total": len({r["name"].lower() for r in rows}),
+        "boards": len(boards),
+        "pending": sum(1 for r in rows if r["discovery_state"] == "pending"),
+        "not_found": len({r["name"].lower() for r in rows if r["discovery_state"] == "not_found"} - {r["name"].lower() for r in boards}),
+        "with_matches": sum(1 for r in boards if r.get("last_matches")),
+        "companies": sorted(rows, key=lambda r: (-(r.get("last_matches") or 0), r["origin"] != "user", r["name"].lower())),
+    }
+
+
+@app.post("/api/companies")
+def post_company(req: CompanyRequest):
+    return track_reply(req.name.strip(), (req.website or "").strip() or None)
+
+
+@app.delete("/api/companies/{company_id}")
+def remove_company(company_id: int):
+    if not delete_company(company_id):
+        raise HTTPException(status_code=404, detail="Company not found")
+    return {"status": "success"}
 
 
 # ---------------------------------------------------------------- alerts
@@ -449,6 +582,7 @@ def system_status():
         "alerts": state["alerts"],
         "last_auto_scan_at": state.get("last_auto_scan_at"),
         "sources": [{"key": k, "label": v["label"], "about": v["about"]} for k, v in SOURCES.items()],
+        "companies": {"boards": sum(1 for c in list_companies() if c["ats"])},
     }
 
 

@@ -591,6 +591,28 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .switch input:checked + span { background: var(--accent-soft); border-color: var(--accent-line); }
 .switch input:checked + span::after { transform: translateX(14px); background: var(--accent); }
 
+.company-add { display: flex; gap: 8px; margin: 12px auto 6px; }
+.company-add input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  outline: none;
+}
+.company-add input:focus { border-color: var(--accent-line); }
+.company-list { margin-top: 8px; max-height: 420px; overflow-y: auto; border-top: 1px solid var(--line); }
+.company-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 110px 110px 20px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.company-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---------- Narrow screens ---------- */
 @media (max-width: 860px) {
   .source-line { display: none; }

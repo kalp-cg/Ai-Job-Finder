@@ -215,6 +215,12 @@ def to_iso(value: Any) -> Optional[str]:
         return None
     if isinstance(value, (int, float)):
         return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+    rel = re.fullmatch(r"(?:about |over |almost )?(\d+|an?|one) (minute|hour|day|week|month|year)s?(?: ago)?", str(value).strip(), re.I)
+    if rel:  # YC-style relative ages, e.g. "3 months"
+        from datetime import timedelta
+        n = 1 if rel.group(1).lower() in ("a", "an", "one") else int(rel.group(1))
+        days = {"minute": 1 / 1440, "hour": 1 / 24, "day": 1, "week": 7, "month": 30, "year": 365}[rel.group(2).lower()]
+        return (datetime.now(timezone.utc) - timedelta(days=n * days)).isoformat()
     text = re.sub(r"\s*GMT([+-]\d\d)(\d\d)$", r"\1:\2", str(value).strip()).replace("Z", "+00:00")
     try:
         parsed = datetime.fromisoformat(text)
@@ -252,6 +258,7 @@ def make_item(
     kind = kind or detect_kind(title, description)
     if pay is None:
         pay = parse_pay(pay_text, default_currency) or parse_pay(description[:3000], default_currency)
+    pay = pay or None  # callers pass {} to mean "pay not stated, don't guess from the description"
     return {
         "source": source,
         "source_label": source_label,

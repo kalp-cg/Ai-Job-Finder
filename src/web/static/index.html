@@ -159,6 +159,16 @@
         <div id="s-sources" class="source-list"></div>
         <p class="muted small">Not included on purpose: LinkedIn, Internshala, Naukri, Wellfound and Indeed. Their terms forbid automated access.</p>
 
+        <h3 class="section-title">Companies</h3>
+        <p class="muted">SARTHI watches these companies' own careers boards directly. Add any company, or paste a LinkedIn hiring post in chat.</p>
+        <form class="company-add" onsubmit="addCompany(event)">
+          <input id="c-name" placeholder="Company name" required>
+          <input id="c-site" placeholder="Website (optional)">
+          <button class="btn btn-quiet" type="submit"><i data-lucide="plus"></i>Watch</button>
+        </form>
+        <p class="muted small" id="c-status"></p>
+        <div id="s-companies"></div>
+
         <h3 class="section-title">Email</h3>
         <div id="s-email"></div>
 

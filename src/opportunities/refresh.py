@@ -68,6 +68,19 @@ def refresh_sources(manual: bool = False, only: Optional[List[str]] = None) -> O
                 logger.error(f"{key} failed: {e}")
                 record_run(key, False, error=str(e)[:300])
                 report["sources"][key] = {"error": str(e)[:300]}
+        if "companies" not in disabled:
+            from src.opportunities.companies import crawl_companies
+            from src.web.agent import load_profile_data
+            kinds = ((load_profile_data().get("search") or {}).get("kinds")) or ["internship"]
+            try:
+                crawl = crawl_companies(kinds, budget_seconds=150 if manual else 100, max_companies=80 if manual else 50)
+                record_run("companies", True, fetched=crawl["checked"], new=crawl["new"])
+                report["sources"]["companies"] = {"fetched": crawl["checked"], "new": crawl["new"], "crawl": crawl}
+                report["new"] += crawl["new"]
+            except Exception as e:
+                logger.error(f"company crawl failed: {e}")
+                record_run("companies", False, error=str(e)[:300])
+                report["sources"]["companies"] = {"error": str(e)[:300]}
         report["finished_at"] = now_iso()
         update_alerts()
         return report

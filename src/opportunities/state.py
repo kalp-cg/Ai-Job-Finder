@@ -15,7 +15,7 @@ _lock = threading.Lock()
 DEFAULTS: Dict[str, Any] = {
     "settings": {
         "scan_interval_minutes": 0,      # 0 = auto-scan off
-        "disabled_sources": [],
+        "disabled_sources": ["unstop"],   # low reply rates reported; can be re-enabled in Settings
         "daily_email_cap": 20,
         "inr_per_usd": 88.0,
     },

@@ -61,7 +61,26 @@ Public APIs and published datasets only. Each source's terms (credit the source,
 | Jobicy API | Remote engineering jobs | 2 h |
 | Himalayas API | Remote jobs with location limits and salaries | 2 h |
 
+Unstop is off by default (low reply rates); switch it on in Settings if you want it.
+
 **Not included on purpose:** LinkedIn, Internshala, Naukri, Wellfound and Indeed. Their terms or robots.txt forbid automated access.
+When you see a role on LinkedIn, paste the post (or "track <company>") into chat: SARTHI finds that company's own careers board and watches it.
+
+### Company careers engine (`src/opportunities/companies.py`)
+Most roles a company announces on LinkedIn are also on its own careers board, and most boards run on a hiring system with a public JSON feed. SARTHI reads those directly.
+
+1. **Find companies:** `config/companies.yaml` (Indian tech companies, editable), YC companies that are hiring in India or fully remote (open YC dataset), companies in this month's HN "Who is hiring?" thread that mention interns/India/remote, and any company you add in chat or Settings.
+2. **Find each company's board:** read the website (robots.txt respected) for links to Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee or Workday, or schema.org JobPosting data, or a plain careers page; otherwise probe those systems' public APIs with likely slugs and accept only verified names (or exact name matches on systems that don't return one).
+3. **Poll with an adaptive queue:** each board has its own next-check time. Boards that post new matches are checked more often (down to 6 h), quiet ones back off (up to 7 days). Requests to any single host are spaced at least 1 s apart. Roles that disappear from a board are marked closed.
+4. **Keep only what fits:** internships (and entry-level roles if you want jobs); senior roles are never stored.
+
+Limits: careers sites that are JavaScript-only with no public feed (e.g. Swiggy, Zomato, Zerodha) can't be read, and Keka/Darwinbox portals disallow automated access in robots.txt.
+
+### Ranking that learns
+`score = 10 × relevance^0.7 × (0.55 + 0.45 × fit) × (0.7 + 0.3 × source trust)`
+- **relevance:** half "is this your kind of role" (title), half skill/keyword overlap (BM25). A fresh, well-paid role that isn't for you can't score well.
+- **fit:** pay vs. what you asked, location, freshness, experience.
+- **source trust:** starts from a prior (company careers 1.0, YC 0.95, aggregators 0.7, Unstop 0.45) and moves with your own outcomes: replies and interviews from a source raise it, silence lowers it.
 
 - **`normalize.py`:** one shape for every posting. Parses skills (with synonyms), pay in any currency/period to monthly USD, experience asked, remote, and an application email only when the text around it is about applying (HR-accommodation and privacy addresses are ignored).
 - **`ranking.py`:** no LLM calls, so thousands of postings rank in ~50 ms. Score = 45% relevance (skill coverage + BM25), 15% pay fit, 15% location fit, 15% freshness (10-day half-life), 10% experience fit. Hard filters for kind, location, closed/expired, and unpaid when you ask for pay. Cross-source duplicates collapse.

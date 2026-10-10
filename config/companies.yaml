@@ -1,0 +1,120 @@
+# Companies SARTHI watches directly (their own careers boards).
+# Only name is required; website helps SARTHI find the careers page.
+# SARTHI works out which hiring system (Greenhouse, Lever, Ashby, ...) each one uses.
+# Add any company here, or just paste a job post / name in SARTHI's chat ("track Juriqa").
+
+india:
+  - {name: Razorpay, website: https://razorpay.com}
+  - {name: CRED, website: https://cred.club}
+  - {name: Groww, website: https://groww.in}
+  - {name: Zerodha, website: https://zerodha.com}
+  - {name: Swiggy, website: https://www.swiggy.com}
+  - {name: Zomato, website: https://www.zomato.com}
+  - {name: Meesho, website: https://www.meesho.com}
+  - {name: PhonePe, website: https://www.phonepe.com}
+  - {name: Postman, website: https://www.postman.com}
+  - {name: Freshworks, website: https://www.freshworks.com}
+  - {name: BrowserStack, website: https://www.browserstack.com}
+  - {name: Chargebee, website: https://www.chargebee.com}
+  - {name: Hasura, website: https://hasura.io}
+  - {name: Atlan, website: https://atlan.com}
+  - {name: Sarvam, website: https://www.sarvam.ai}
+  - {name: Zepto, website: https://www.zeptonow.com}
+  - {name: Ola, website: https://www.olacabs.com}
+  - {name: Unacademy, website: https://unacademy.com}
+  - {name: upGrad, website: https://www.upgrad.com}
+  - {name: Dream11, website: https://www.dream11.com}
+  - {name: InMobi, website: https://www.inmobi.com}
+  - {name: ShareChat, website: https://sharechat.com}
+  - {name: Paytm, website: https://paytm.com}
+  - {name: Flipkart, website: https://www.flipkart.com}
+  - {name: Myntra, website: https://www.myntra.com}
+  - {name: Nykaa, website: https://www.nykaa.com}
+  - {name: Lenskart, website: https://www.lenskart.com}
+  - {name: Urban Company, website: https://www.urbancompany.com}
+  - {name: Cars24, website: https://www.cars24.com}
+  - {name: Spinny, website: https://www.spinny.com}
+  - {name: Licious, website: https://www.licious.in}
+  - {name: Slice, website: https://www.sliceit.com}
+  - {name: Jupiter, website: https://jupiter.money}
+  - {name: Fi, website: https://fi.money}
+  - {name: Khatabook, website: https://khatabook.com}
+  - {name: OkCredit, website: https://okcredit.in}
+  - {name: Rapido, website: https://www.rapido.bike}
+  - {name: BharatPe, website: https://bharatpe.com}
+  - {name: Juspay, website: https://juspay.in}
+  - {name: Setu, website: https://setu.co}
+  - {name: Zeta, website: https://www.zeta.tech}
+  - {name: Innovaccer, website: https://innovaccer.com}
+  - {name: Druva, website: https://www.druva.com}
+  - {name: Darwinbox, website: https://darwinbox.com}
+  - {name: Whatfix, website: https://whatfix.com}
+  - {name: LeadSquared, website: https://www.leadsquared.com}
+  - {name: Mindtickle, website: https://www.mindtickle.com}
+  - {name: CleverTap, website: https://clevertap.com}
+  - {name: MoEngage, website: https://www.moengage.com}
+  - {name: WebEngage, website: https://webengage.com}
+  - {name: Haptik, website: https://www.haptik.ai}
+  - {name: Yellow.ai, website: https://yellow.ai}
+  - {name: Exotel, website: https://exotel.com}
+  - {name: Ather Energy, website: https://www.atherenergy.com}
+  - {name: Uniphore, website: https://www.uniphore.com}
+  - {name: Observe.AI, website: https://www.observe.ai}
+  - {name: Sprinklr, website: https://www.sprinklr.com}
+  - {name: Practo, website: https://www.practo.com}
+  - {name: PharmEasy, website: https://pharmeasy.in}
+  - {name: Cult.fit, website: https://www.cult.fit}
+  - {name: HealthifyMe, website: https://www.healthifyme.com}
+  - {name: Vedantu, website: https://www.vedantu.com}
+  - {name: Physics Wallah, website: https://www.pw.live}
+  - {name: Scaler, website: https://www.scaler.com}
+  - {name: HackerRank, website: https://www.hackerrank.com}
+  - {name: Glance, website: https://glance.com}
+  - {name: Pocket FM, website: https://www.pocketfm.com}
+  - {name: KukuFM, website: https://kukufm.com}
+  - {name: Rupeek, website: https://rupeek.com}
+  - {name: smallcase, website: https://www.smallcase.com}
+  - {name: INDmoney, website: https://www.indmoney.com}
+  - {name: Zolve, website: https://zolve.com}
+  - {name: Open Financial Technologies, website: https://open.money}
+  - {name: Ninjacart, website: https://www.ninjacart.com}
+  - {name: Udaan, website: https://udaan.com}
+  - {name: Delhivery, website: https://www.delhivery.com}
+  - {name: Shiprocket, website: https://www.shiprocket.in}
+  - {name: Zoho, website: https://www.zoho.com}
+  - {name: Ixigo, website: https://www.ixigo.com}
+  - {name: MakeMyTrip, website: https://www.makemytrip.com}
+  - {name: Pine Labs, website: https://www.pinelabs.com}
+  - {name: Cashfree Payments, website: https://www.cashfree.com}
+  - {name: Perfios, website: https://www.perfios.com}
+  - {name: Signzy, website: https://www.signzy.com}
+  - {name: Hevo Data, website: https://hevodata.com}
+  - {name: Rocketlane, website: https://www.rocketlane.com}
+  - {name: Plum, website: https://www.plumhq.com}
+  - {name: Acko, website: https://www.acko.com}
+  - {name: Digit Insurance, website: https://www.godigit.com}
+  - {name: Turing, website: https://www.turing.com}
+  - {name: Toplyne, website: https://www.toplyne.io}
+  - {name: SpotDraft, website: https://www.spotdraft.com}
+  - {name: Gupshup, website: https://www.gupshup.io}
+  - {name: Simplilearn, website: https://www.simplilearn.com}
+  - {name: Eightfold, website: https://eightfold.ai}
+  - {name: Tekion, website: https://tekion.com}
+  - {name: Highradius, website: https://www.highradius.com}
+  - {name: Icertis, website: https://www.icertis.com}
+  - {name: Amagi, website: https://www.amagi.com}
+  - {name: Capillary Technologies, website: https://www.capillarytech.com}
+  - {name: Lightspeed India, website: https://lsip.com}
+  - {name: Nium, website: https://www.nium.com}
+  - {name: Kissflow, website: https://kissflow.com}
+  - {name: Agnikul, website: https://agnikul.in}
+  - {name: Skyroot Aerospace, website: https://skyroot.in}
+  - {name: Pixxel, website: https://www.pixxel.space}
+  - {name: Krutrim, website: https://www.olakrutrim.com}
+  - {name: Composio, website: https://composio.dev}
+  - {name: Dyte, website: https://dyte.io}
+  - {name: Appsmith, website: https://www.appsmith.com}
+  - {name: ToolJet, website: https://www.tooljet.com}
+  - {name: SigNoz, website: https://signoz.io}
+  - {name: Supabase, website: https://supabase.com}
+  - {name: Frappe, website: https://frappe.io}

@@ -134,7 +134,7 @@ function renderSourceLine() {
 }
 
 function labelFor(key) {
-  return (state.status?.sources || []).find((s) => s.key === key)?.label || { hn: 'Hacker News', reddit: 'Reddit' }[key] || key;
+  return (state.status?.sources || []).find((s) => s.key === key)?.label || { hn: 'Hacker News', reddit: 'Reddit', companies: 'Company careers' }[key] || key;
 }
 
 function renderQueue() {
@@ -198,7 +198,7 @@ function renderStage() {
   } else {
     thread.innerHTML = messageHtml({ role: 'ai', ...briefing() }) + peekHtml() + messagesHtml(state.threads.overview);
     $('context-chip').hidden = true;
-    $('input').placeholder = 'Ask SARTHI, e.g. "React internship, 1 year experience, ₹15k stipend"';
+    $('input').placeholder = 'Ask for roles, or paste a LinkedIn post to track that company';
   }
   refreshIcons();
 }
@@ -223,7 +223,7 @@ function briefing() {
   }
 
   const notes = [];
-  if (state.totalPostings) notes.push(`I'm tracking ${state.totalPostings.toLocaleString()} postings from ${Object.keys(s?.runs || {}).length} sources.`);
+  if (state.totalPostings) notes.push(`I'm tracking ${state.totalPostings.toLocaleString()} postings${s?.companies?.boards ? `, including ${s.companies.boards} company careers boards I check directly` : ''}.`);
   for (const [key, r] of Object.entries(s?.runs || {})) {
     if (!r.ok && r.error) notes.push(`${labelFor(key)} was skipped: ${r.error}`);
   }
@@ -697,7 +697,7 @@ async function runScan() {
   $('brand-chakra').classList.add('spinning');
   if (state.selected || state.page) showOverview();
 
-  const stop = showThinking('overview', 'Checking every source and ranking what fits. This takes about a minute.');
+  const stop = showThinking('overview', 'Checking job feeds and company careers boards, then ranking what fits. This takes two or three minutes.');
   try {
     const report = await api('/api/scan', { method: 'POST' });
     stop();
@@ -712,6 +712,12 @@ async function runScan() {
       ? `Done. **${newCount} new postings** came in from ${ran.length} sources. The best fits are in New.`
       : `Done. I checked ${ran.length} sources and found nothing new since the last scan.`;
     const notes = [];
+    const crawl = report.sources?.companies?.crawl;
+    if (crawl) {
+      notes.push(`Company careers: checked ${crawl.checked} companies, ${crawl.matches} open roles fit you.` +
+        (crawl.not_found ? ` ${crawl.not_found} had no public board.` : '') +
+        (crawl.remaining_due ? ` ${crawl.remaining_due} more will be checked on the next scans.` : ''));
+    }
     if (skipped.length) notes.push(`Checked recently, so skipped this time: ${skipped.join(', ')}.`);
     notes.push(...failed);
     state.tab = 'new';
@@ -828,7 +834,8 @@ function renderSettings() {
   const disabled = new Set(s.settings?.disabled_sources || []);
   const allSources = [...(s.sources || []),
     { key: 'hn', label: 'Hacker News', about: "Monthly 'Who is hiring' and freelancer threads, scored with Gemini." },
-    { key: 'reddit', label: 'Reddit', about: 'r/forhire and similar. Needs valid API keys in .env.' }];
+    { key: 'reddit', label: 'Reddit', about: 'r/forhire and similar. Needs valid API keys in .env.' },
+    { key: 'companies', label: 'Company careers boards', about: 'Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Workday, YC and plain careers pages, read directly.' }];
   $('s-sources').innerHTML = allSources.map((src) => {
     const run = s.runs?.[src.key];
     const statusText = !run ? 'Not run yet'
@@ -859,6 +866,8 @@ SMTP_USER=you@gmail.com
 SMTP_PASSWORD=your 16-character app password</pre>
        <p class="muted small">Gmail needs an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App Password</a>, which requires 2-step verification. Your normal password won't work.</p>`;
 
+  renderCompanies();
+
   const alerts = s.alerts || [];
   $('s-alerts').innerHTML = alerts.length
     ? alerts.map((a) => `
@@ -868,6 +877,48 @@ SMTP_PASSWORD=your 16-character app password</pre>
         </div>`).join('')
     : '<p class="muted">No alerts yet. Ask SARTHI for something in chat, then click "Alert me about new matches".</p>';
   refreshIcons();
+}
+
+async function renderCompanies() {
+  const data = await api('/api/companies').catch(() => null);
+  if (!data) return;
+  const atsLabel = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', smartrecruiters: 'SmartRecruiters',
+    recruitee: 'Recruitee', workday: 'Workday', yc: 'YC', jsonld: 'careers page', html: 'careers page' };
+  const rows = data.companies.filter((c) => c.ats || c.origin === 'user').slice(0, 60);
+  $('s-companies').innerHTML = `
+    <p class="mono small muted">${data.total} companies · ${data.boards} boards found · ${data.pending} still to check · ${data.not_found} without a public board</p>
+    <div class="company-list">${rows.map((c) => `
+      <div class="company-row">
+        <span class="company-name">${escapeHtml(c.name)}</span>
+        <span class="mono small muted">${c.ats ? atsLabel[c.ats] : c.discovery_state === 'pending' ? 'checking soon' : 'no public board'}</span>
+        <span class="mono small ${c.last_matches ? '' : 'muted'}">${c.ats && c.last_open_roles !== null ? `${c.last_matches ?? 0} saved / ${c.last_open_roles} open` : ''}</span>
+        <span class="mono small muted">${c.next_check_at && c.ats ? `next ${dueIn(c.next_check_at)}` : ''}</span>
+        ${c.origin === 'user' ? `<button class="link-btn" onclick="removeCompany(${c.id})" title="Stop watching"><i data-lucide="x"></i></button>` : '<span></span>'}
+      </div>`).join('')}</div>`;
+  refreshIcons();
+}
+
+async function addCompany(e) {
+  e.preventDefault();
+  const name = $('c-name').value.trim();
+  const website = $('c-site').value.trim();
+  $('c-status').textContent = `Looking for ${name}'s careers board...`;
+  try {
+    const res = await api('/api/companies', { method: 'POST', body: JSON.stringify({ name, website }) });
+    $('c-status').textContent = res.reply.replace(/\*\*/g, '');
+    $('c-name').value = '';
+    $('c-site').value = '';
+    await loadItems();
+    renderQueue();
+    renderCompanies();
+  } catch (err) {
+    $('c-status').textContent = `Couldn't add it: ${err.message}`;
+  }
+}
+
+async function removeCompany(id) {
+  await api(`/api/companies/${id}`, { method: 'DELETE' });
+  renderCompanies();
 }
 
 async function saveSettings(changes) {
@@ -1067,7 +1118,9 @@ function timeAgo(iso) {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 60) return `${days}d ago`;
+  return days < 730 ? `${Math.round(days / 30)}mo ago` : `${Math.round(days / 365)}y ago`;
 }
 
 function dueIn(iso) {

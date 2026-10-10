@@ -114,6 +114,29 @@ def init_db(db_path: Optional[Path] = None) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_opp_dedupe ON opportunities(dedupe_key)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_opp_status ON opportunities(status)")
 
+    # Company careers boards SARTHI watches (one row per board)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS companies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            website TEXT,
+            ats TEXT,                            -- 'greenhouse', 'lever', 'ashby', 'workable', 'smartrecruiters', 'recruitee', 'workday', 'yc', 'jsonld', or NULL if not found yet
+            slug TEXT,                           -- board identifier on that ATS (or careers URL for 'jsonld' / 'workday')
+            origin TEXT,                         -- 'yc', 'seed', 'user', 'hn'
+            location_hint TEXT,
+            discovery_state TEXT DEFAULT 'pending', -- 'pending', 'found', 'not_found'
+            check_interval_hours REAL DEFAULT 24,
+            next_check_at TEXT,
+            last_checked_at TEXT,
+            last_open_roles INTEGER,
+            last_matches INTEGER,
+            last_error TEXT,
+            created_at TEXT,
+            UNIQUE(name, ats, slug)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_companies_next ON companies(next_check_at)")
+
     # Every email SARTHI sends on the user's click
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS outreach (
@@ -456,7 +479,8 @@ def upsert_opportunities(items: List[Dict[str, Any]], dedupe_key_fn, db_path: Op
                 description = excluded.description, location = excluded.location, remote = excluded.remote,
                 skills = excluded.skills, pay_text = excluded.pay_text, pay_monthly_usd = excluded.pay_monthly_usd,
                 experience_years = excluded.experience_years, contact_email = excluded.contact_email,
-                deadline = excluded.deadline, active = 1, last_seen_at = excluded.last_seen_at
+                deadline = excluded.deadline, active = 1, last_seen_at = excluded.last_seen_at,
+                posted_at = COALESCE(opportunities.posted_at, excluded.posted_at)
             """,
             (
                 it["source"], it["external_id"], dedupe_key_fn(it["company"], it["title"]), it["kind"], it["title"],
@@ -544,3 +568,71 @@ def outreach_for(item_ref: str, db_path: Optional[Path] = None) -> List[Dict[str
     rows = conn.execute("SELECT * FROM outreach WHERE item_ref = ? ORDER BY created_at DESC", (item_ref,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------- Companies (careers boards)
+
+def add_company(name: str, website: Optional[str] = None, origin: str = "user", location_hint: Optional[str] = None,
+                ats: Optional[str] = None, slug: Optional[str] = None, db_path: Optional[Path] = None) -> Optional[int]:
+    """Add a company to discover (ats=None) or a known board. Returns the row id, or None if it already exists."""
+    conn = get_db_connection(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    if ats is None:
+        # A discovery request is redundant if the company already has (or is finding) a non-YC board.
+        exists = conn.execute(
+            "SELECT id FROM companies WHERE LOWER(name) = LOWER(?) AND (ats IS NULL OR ats != 'yc')", (name,)
+        ).fetchone()
+    else:
+        exists = conn.execute("SELECT id FROM companies WHERE ats = ? AND slug = ?", (ats, slug)).fetchone()
+    if exists:
+        conn.close()
+        return None
+    cur = conn.execute(
+        """INSERT INTO companies (name, website, ats, slug, origin, location_hint, discovery_state, next_check_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (name, website, ats, slug, origin, location_hint, "found" if ats else "pending", now, now),
+    )
+    conn.commit()
+    row_id = cur.lastrowid
+    conn.close()
+    return row_id
+
+
+def list_companies(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    conn = get_db_connection(db_path)
+    rows = conn.execute("SELECT * FROM companies ORDER BY name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def due_companies(now_iso: str, limit: int, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Boards whose next check is due, plus companies still waiting for discovery. Oldest first."""
+    conn = get_db_connection(db_path)
+    rows = conn.execute(
+        """SELECT * FROM companies
+           WHERE discovery_state != 'duplicate' AND (next_check_at IS NULL OR next_check_at <= ?)
+           ORDER BY discovery_state = 'pending' DESC, next_check_at ASC LIMIT ?""",
+        (now_iso, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_company(company_id: int, db_path: Optional[Path] = None, **fields: Any) -> None:
+    allowed = {"website", "ats", "slug", "discovery_state", "check_interval_hours", "next_check_at", "last_checked_at",
+               "last_open_roles", "last_matches", "last_error", "name"}
+    data = {k: v for k, v in fields.items() if k in allowed}
+    if not data:
+        return
+    conn = get_db_connection(db_path)
+    conn.execute(f"UPDATE companies SET {', '.join(f'{k} = ?' for k in data)} WHERE id = ?", (*data.values(), company_id))
+    conn.commit()
+    conn.close()
+
+
+def delete_company(company_id: int, db_path: Optional[Path] = None) -> bool:
+    conn = get_db_connection(db_path)
+    cur = conn.execute("DELETE FROM companies WHERE id = ?", (company_id,))
+    conn.commit()
+    conn.close()
+    return cur.rowcount > 0

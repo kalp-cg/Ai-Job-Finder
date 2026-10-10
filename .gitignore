@@ -24,3 +24,5 @@ data/assistant.db
 data/state.json
 data/resume.pdf
 data/resume_upload.*
+data/yc_companies.json
+data/hn_hiring_companies.json
