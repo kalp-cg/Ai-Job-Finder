@@ -223,6 +223,32 @@ async function sendMessage() {
   }
 }
 
+function getLaceVortexSvg(extraClass = '') {
+  return `
+    <svg class="vortex-svg-icon ${extraClass}" viewBox="0 0 32 32" fill="none">
+      <path d="M16 3.5C9.1 3.5 3.5 9.1 3.5 16C3.5 19.4 4.8 22.5 7 24.8" stroke="url(#vtx-p)" stroke-width="2.6" stroke-linecap="round" />
+      <path d="M16 28.5C22.9 28.5 28.5 22.9 28.5 16C28.5 12.6 27.2 9.5 25 7.2" stroke="url(#vtx-m)" stroke-width="2.6" stroke-linecap="round" />
+      <path d="M10.2 16C10.2 12.8 12.8 10.2 16 10.2C18.1 10.2 20 11.3 21 13" stroke="url(#vtx-g)" stroke-width="2.3" stroke-linecap="round" />
+      <path d="M21.8 16C21.8 19.2 19.2 21.8 16 21.8C13.9 21.8 12 20.7 11 19" stroke="url(#vtx-p)" stroke-width="2.3" stroke-linecap="round" />
+      <circle cx="16" cy="16" r="2.2" fill="#8b5cf6" />
+      <defs>
+        <linearGradient id="vtx-p" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#a855f7" />
+          <stop offset="100%" stop-color="#6366f1" />
+        </linearGradient>
+        <linearGradient id="vtx-m" x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ec4899" />
+          <stop offset="100%" stop-color="#8b5cf6" />
+        </linearGradient>
+        <linearGradient id="vtx-g" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#f59e0b" />
+          <stop offset="100%" stop-color="#ec4899" />
+        </linearGradient>
+      </defs>
+    </svg>
+  `;
+}
+
 function appendMessage(role, content) {
   conversationHistory.push({ role, content });
   const container = document.getElementById('messages-flow');
@@ -230,19 +256,11 @@ function appendMessage(role, content) {
   const row = document.createElement('div');
   row.className = `msg-row ${role}`;
 
-  // AI Avatar (Claude-style Starburst)
+  // AI Avatar (LACE-style Cyber Vortex Logo)
   if (role === 'ai') {
     const avatar = document.createElement('div');
     avatar.className = 'ai-avatar';
-    avatar.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C11.4 2 11 3.8 11 5.8C11 7.8 11.4 9 12 9C12.6 9 13 7.8 13 5.8C13 3.8 12.6 2 12 2Z" opacity="0.9" />
-        <path d="M12 15C11.4 15 11 16.2 11 18.2C11 20.2 11.4 22 12 22C12.6 22 13 20.2 13 18.2C13 16.2 12.6 15 12 15Z" opacity="0.9" />
-        <path d="M2 12C2 11.4 3.8 11 5.8 11C7.8 11 9 11.4 9 12C9 12.6 7.8 13 5.8 13C3.8 13 2 12.6 2 12Z" opacity="0.9" />
-        <path d="M15 12C15 11.4 16.2 11 18.2 11C20.2 11 22 11.4 22 12C22 12.6 20.2 13 18.2 13C16.2 13 15 12.6 15 12Z" opacity="0.9" />
-        <circle cx="12" cy="12" r="2.2" />
-      </svg>
-    `;
+    avatar.innerHTML = getLaceVortexSvg();
     row.appendChild(avatar);
   }
 
@@ -263,28 +281,18 @@ function appendThinkingIndicator() {
 
   const row = document.createElement('div');
   row.id = id;
-  row.className = 'msg-row ai';
+  row.className = 'msg-row ai thinking-row';
   row.innerHTML = `
-    <div class="ai-avatar">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C11.4 2 11 3.8 11 5.8C11 7.8 11.4 9 12 9C12.6 9 13 7.8 13 5.8C13 3.8 12.6 2 12 2Z" opacity="0.9" />
-        <path d="M12 15C11.4 15 11 16.2 11 18.2C11 20.2 11.4 22 12 22C12.6 22 13 20.2 13 18.2C13 16.2 12.6 15 12 15Z" opacity="0.9" />
-        <path d="M2 12C2 11.4 3.8 11 5.8 11C7.8 11 9 11.4 9 12C9 12.6 7.8 13 5.8 13C3.8 13 2 12.6 2 12Z" opacity="0.9" />
-        <path d="M15 12C15 11.4 16.2 11 18.2 11C20.2 11 22 11.4 22 12C22 12.6 20.2 13 18.2 13C16.2 13 15 12.6 15 12Z" opacity="0.9" />
-        <circle cx="12" cy="12" r="2.2" />
-      </svg>
+    <div class="ai-avatar thinking-logo-spin">
+      ${getLaceVortexSvg('vortex-pulse-spin')}
     </div>
     <div class="msg-content">
-      <div class="thinking-box">
-        <div class="thinking-pulse-ring"></div>
-        <span>Thinking...</span>
-      </div>
+      <div class="thinking-label">Thinking...</div>
     </div>
   `;
 
   container.appendChild(row);
   scrollToBottom();
-  initLucide();
   return id;
 }
 

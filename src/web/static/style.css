@@ -1,45 +1,47 @@
 :root {
   /* =========================================================================
-     OBSIDIAN EDITORIAL DESIGN SYSTEM
-     True Obsidian Black, Editorial Typography, Terracotta Signature Accent
+     LACE CYBER VIOLET & AMETHYST DESIGN SYSTEM
+     Deep Midnight Violet Canvas, Luminous Purple Sheen, Electric Violet Accents
      ========================================================================= */
-  --bg-pitch: #09090b;
-  --bg-surface: #121215;
-  --bg-elevated: #18181d;
-  --bg-card: #141418;
-  --bg-card-hover: #1e1e24;
+  --bg-pitch: #0c0a14;
+  --bg-surface: #120e20;
+  --bg-elevated: #181329;
+  --bg-card: #151024;
+  --bg-card-hover: #201a35;
 
-  /* Crisp Hairline Borders */
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-default: rgba(255, 255, 255, 0.12);
-  --border-bright: rgba(255, 255, 255, 0.22);
-  --border-focus: #d97757;
+  /* Hairline Violet Borders */
+  --border-subtle: rgba(139, 92, 246, 0.16);
+  --border-default: rgba(139, 92, 246, 0.30);
+  --border-bright: rgba(168, 85, 247, 0.55);
+  --border-focus: #8b5cf6;
 
   /* Typography */
   --text-main: #ffffff;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --text-dim: #52525b;
+  --text-secondary: #c4b5fd;
+  --text-muted: #8b83a6;
+  --text-dim: #5c5573;
 
-  /* 1% Signature Accent: Warm Terracotta Clay */
-  --accent: #d97757;
-  --accent-hover: #e28a6c;
-  --accent-glow: rgba(217, 119, 87, 0.28);
-  --accent-subtle: rgba(217, 119, 87, 0.12);
-  --accent-border: rgba(217, 119, 87, 0.25);
+  /* LACE Accents */
+  --accent: #8b5cf6;
+  --accent-hover: #a855f7;
+  --accent-gradient: linear-gradient(135deg, #7c3aed, #a855f7);
+  --accent-glow: rgba(139, 92, 246, 0.45);
+  --accent-subtle: rgba(139, 92, 246, 0.15);
+  --accent-border: rgba(139, 92, 246, 0.35);
 
-  /* Tabular Numerals */
-  --accent-gold: #e5b869;
+  --accent-magenta: #ec4899;
+  --accent-gold: #f59e0b;
+  --accent-mint: #2dd4bf;
 
   /* Fonts */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   /* Radii */
-  --radius-xs: 5px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
   --radius-pill: 9999px;
 }
 
@@ -51,6 +53,8 @@
 
 body {
   background-color: var(--bg-pitch);
+  background-image: radial-gradient(ellipse 90% 45% at 50% -10%, rgba(139, 92, 246, 0.28), transparent 75%);
+  background-repeat: no-repeat;
   color: var(--text-main);
   font-family: var(--font-sans);
   height: 100vh;
@@ -70,16 +74,17 @@ body {
 }
 
 /* =========================================================================
-   1. MINIMAL APP HEADER & STARBURST LOGO
+   1. MINIMAL APP HEADER & LACE VORTEX LOGO
    ========================================================================= */
 .app-header {
-  height: 54px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-pitch);
+  background: rgba(18, 14, 32, 0.7);
+  backdrop-filter: blur(14px);
   flex-shrink: 0;
   z-index: 10;
 }
@@ -87,42 +92,42 @@ body {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .logo-mark {
-  width: 26px;
-  height: 26px;
-  color: var(--accent);
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.5));
 }
 
-.logo-starburst {
-  width: 22px;
-  height: 22px;
-  animation: starburstBreathe 4s ease-in-out infinite;
+.logo-vortex {
+  width: 26px;
+  height: 26px;
+  animation: vortexBreathe 6s ease-in-out infinite;
   transform-origin: center;
 }
 
-@keyframes starburstBreathe {
+@keyframes vortexBreathe {
   0%, 100% {
-    transform: scale(1) rotate(0deg);
-    opacity: 0.95;
+    transform: rotate(0deg) scale(1);
   }
   50% {
-    transform: scale(1.08) rotate(22deg);
-    opacity: 1;
+    transform: rotate(180deg) scale(1.06);
   }
 }
 
 .logo-text {
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-weight: 700;
+  font-size: 1.02rem;
   letter-spacing: -0.02em;
-  color: var(--text-main);
+  background: linear-gradient(135deg, #ffffff, #c4b5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .header-right {
@@ -135,31 +140,33 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  background: transparent;
+  background: rgba(24, 19, 41, 0.6);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: var(--radius-pill);
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .btn-ghost:hover {
-  background: var(--bg-surface);
+  background: var(--bg-elevated);
   border-color: var(--border-default);
   color: var(--text-main);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);
 }
 
 .count-pill {
   background: var(--accent-subtle);
-  color: var(--accent);
+  color: #c4b5fd;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 600;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
 }
 
 /* =========================================================================
@@ -197,8 +204,8 @@ body {
 
 .hero-animation-wrap {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   margin-bottom: 24px;
   display: flex;
   align-items: center;
@@ -207,38 +214,42 @@ body {
 
 .hero-pulse-glow {
   position: absolute;
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
-  background: var(--accent);
-  filter: blur(28px);
-  opacity: 0.25;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.6) 0%, rgba(236, 72, 153, 0.3) 50%, transparent 75%);
+  filter: blur(24px);
+  opacity: 0.6;
   animation: glowPulse 4s ease-in-out infinite;
 }
 
 @keyframes glowPulse {
-  0%, 100% { opacity: 0.2; transform: scale(0.9); }
-  50% { opacity: 0.45; transform: scale(1.15); }
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 0.75; transform: scale(1.15); }
 }
 
 .hero-brand-mark {
   position: relative;
-  width: 52px;
-  height: 52px;
-  color: var(--accent);
+  width: 58px;
+  height: 58px;
   display: flex;
   align-items: center;
   justify-content: center;
+  filter: drop-shadow(0 0 16px rgba(139, 92, 246, 0.6));
 }
 
-.hero-starburst-large {
-  width: 48px;
-  height: 48px;
-  animation: starburstBreathe 5s ease-in-out infinite;
+.hero-vortex-large {
+  width: 54px;
+  height: 54px;
+  animation: vortexRotate 16s linear infinite;
+}
+
+@keyframes vortexRotate {
+  100% { transform: rotate(360deg); }
 }
 
 .hero-heading {
-  font-size: 1.55rem;
+  font-size: 1.6rem;
   font-weight: 600;
   letter-spacing: -0.025em;
   color: var(--text-main);
@@ -255,7 +266,7 @@ body {
   margin-bottom: 28px;
 }
 
-/* Quick Prompt Chips */
+/* Quick Prompt Chips (LACE Pill Aesthetics) */
 .quick-prompts {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -268,7 +279,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--bg-surface);
+  background: rgba(24, 19, 41, 0.7);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 12px 14px;
@@ -276,7 +287,8 @@ body {
   color: var(--text-secondary);
   font-size: 0.82rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
 }
 
 .prompt-chip:hover {
@@ -284,6 +296,7 @@ body {
   border-color: var(--border-default);
   color: var(--text-main);
   transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
 }
 
 .prompt-chip i {
@@ -292,7 +305,7 @@ body {
 }
 
 /* =========================================================================
-   3. MESSAGES FLOW (NO "YOU" BADGE, REFINED STREAMING)
+   3. MESSAGES FLOW & THE LOGO-IS-THE-THINKING ANIMATION
    ========================================================================= */
 .messages-flow {
   display: flex;
@@ -320,7 +333,7 @@ body {
 }
 
 .msg-row.user .msg-content {
-  background: var(--bg-surface);
+  background: linear-gradient(135deg, rgba(24, 19, 41, 0.95), rgba(34, 27, 56, 0.95));
   border: 1px solid var(--border-default);
   padding: 11px 18px;
   border-radius: var(--radius-lg);
@@ -329,28 +342,28 @@ body {
   font-size: 0.92rem;
   line-height: 1.55;
   max-width: 82%;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
 }
 
-/* AI Message: Left-Aligned, Clean Starburst Avatar */
+/* AI Message: Left-Aligned, LACE Vortex Logo Avatar */
 .msg-row.ai {
   justify-content: flex-start;
 }
 
 .ai-avatar {
-  width: 24px;
-  height: 24px;
-  color: var(--accent);
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   margin-top: 2px;
+  filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.4));
 }
 
-.ai-avatar svg {
-  width: 20px;
-  height: 20px;
+.vortex-svg-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .msg-row.ai .msg-content {
@@ -360,27 +373,43 @@ body {
   color: var(--text-main);
 }
 
-/* Thinking Indicator */
-.thinking-box {
-  display: flex;
+/* THE LOGO IS THE THINKING ANIMATION (NO SEPARATE CIRCLE SPINNER!) */
+.thinking-row {
   align-items: center;
-  gap: 10px;
+}
+
+.thinking-logo-spin {
+  filter: drop-shadow(0 0 12px rgba(139, 92, 246, 0.7));
+}
+
+.vortex-pulse-spin {
+  animation: vortexThinkingSpin 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  transform-origin: center;
+}
+
+@keyframes vortexThinkingSpin {
+  0% {
+    transform: rotate(0deg) scale(0.96);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.12);
+  }
+  100% {
+    transform: rotate(360deg) scale(0.96);
+  }
+}
+
+.thinking-label {
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   font-style: italic;
+  letter-spacing: 0.02em;
+  animation: pulseOpacity 1.5s ease-in-out infinite;
 }
 
-.thinking-pulse-ring {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--accent);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  100% { transform: rotate(360deg); }
+@keyframes pulseOpacity {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 /* In-Stream Lead Cards */
@@ -393,11 +422,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: border-color 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .lead-result-card:hover {
   border-color: var(--border-bright);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.2);
 }
 
 .lead-card-header {
@@ -422,7 +453,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--accent);
+  color: #c4b5fd;
   background: var(--accent-subtle);
   padding: 2px 8px;
   border-radius: var(--radius-xs);
@@ -488,8 +519,8 @@ body {
 
 .btn-inline-copy.copied {
   background: var(--accent-subtle);
-  color: var(--accent);
-  border-color: var(--accent-border);
+  color: var(--accent-mint);
+  border-color: rgba(45, 212, 191, 0.4);
 }
 
 /* =========================================================================
@@ -505,20 +536,21 @@ body {
 }
 
 .input-card {
-  background: var(--bg-surface);
+  background: rgba(18, 14, 32, 0.85);
+  backdrop-filter: blur(18px);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   padding: 12px 14px 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.6), 0 0 20px rgba(139, 92, 246, 0.12);
+  transition: all 0.2s ease;
 }
 
 .input-card:focus-within {
   border-color: var(--border-bright);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--border-bright);
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.65), 0 0 24px rgba(139, 92, 246, 0.25);
 }
 
 .chat-input-textarea {
@@ -550,7 +582,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: transparent;
+  background: rgba(24, 19, 41, 0.6);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   padding: 4px 10px;
@@ -584,22 +616,23 @@ body {
 }
 
 .btn-send-round {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-gradient);
   border: none;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 16px var(--accent-glow);
 }
 
 .btn-send-round:hover {
-  background: var(--accent-hover);
-  transform: scale(1.05);
+  transform: scale(1.08);
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.6);
 }
 
 /* =========================================================================
@@ -619,7 +652,7 @@ body {
   flex-direction: column;
   transform: translateX(100%);
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.6);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.7);
 }
 
 .leads-drawer.open {
@@ -629,8 +662,8 @@ body {
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
   z-index: 99;
   opacity: 0;
   pointer-events: none;
@@ -643,7 +676,7 @@ body {
 }
 
 .drawer-header {
-  height: 54px;
+  height: 56px;
   padding: 0 18px;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
@@ -665,7 +698,7 @@ body {
 
 .drawer-badge {
   background: var(--accent-subtle);
-  color: var(--accent);
+  color: #c4b5fd;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 600;
@@ -692,6 +725,10 @@ body {
   outline: none;
 }
 
+.drawer-search-input:focus {
+  border-color: var(--border-default);
+}
+
 .drawer-filter-pills {
   display: flex;
   gap: 6px;
@@ -708,9 +745,10 @@ body {
 }
 
 .pill-btn.active {
-  background: var(--bg-elevated);
-  border-color: var(--border-default);
-  color: var(--text-main);
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 500;
 }
 
 .drawer-list {
@@ -728,8 +766,8 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
   z-index: 200;
   display: none;
   align-items: center;
@@ -749,6 +787,7 @@ body {
   max-height: 90vh;
   overflow-y: auto;
   padding: 24px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), 0 0 24px rgba(139, 92, 246, 0.2);
 }
 
 .modal-card-header {
@@ -774,7 +813,7 @@ body {
 /* Smart Resume Dropzone */
 .resume-dropzone {
   border: 1.5px dashed var(--border-bright);
-  background: var(--bg-pitch);
+  background: rgba(12, 10, 20, 0.6);
   border-radius: var(--radius-md);
   padding: 16px 14px;
   margin-bottom: 16px;
@@ -785,7 +824,8 @@ body {
 
 .resume-dropzone:hover {
   border-color: var(--accent);
-  background: rgba(217, 119, 87, 0.04);
+  background: rgba(139, 92, 246, 0.08);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
 }
 
 .dropzone-content {
@@ -796,8 +836,8 @@ body {
 }
 
 .dropzone-icon-wrap {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   display: flex;
@@ -845,6 +885,10 @@ body {
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
 
 /* Form Styles */
@@ -921,7 +965,7 @@ body {
 }
 
 .skill-chip-remove:hover {
-  color: var(--accent);
+  color: var(--accent-magenta);
 }
 
 .skill-input-row {
@@ -981,19 +1025,21 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--accent);
+  background: var(--accent-gradient);
   border: none;
   color: #fff;
-  padding: 7px 14px;
+  padding: 8px 16px;
   border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  box-shadow: 0 0 14px var(--accent-glow);
+  transition: all 0.2s ease;
 }
 
 .btn-submit:hover {
-  opacity: 0.9;
+  transform: scale(1.02);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.55);
 }
 
 /* Utilities */
