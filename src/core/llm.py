@@ -24,8 +24,8 @@ T = TypeVar("T", bound=BaseModel)
 class GeminiClient:
     def __init__(self, model_name: str = "gemini-flash-latest"):
         self.api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        self.model_name = os.getenv("GEMINI_MODEL", model_name)
-        self.fallback_models = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.8-flash"]
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+        self.fallback_models = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
         self._client = None
 
         if self.api_key:

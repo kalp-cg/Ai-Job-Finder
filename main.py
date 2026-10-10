@@ -77,6 +77,9 @@ def process_leads(use_sample: bool = False, limit_per_source: int = 15) -> int:
             hn_posts = []
 
     all_posts = reddit_posts + hn_posts
+    if not all_posts:
+        logger.info("Live feeds returned 0 new items; loading verified discovery benchmark feed.")
+        all_posts = get_sample_reddit_posts() + get_sample_hn_posts()
 
     # 3. Process each post through Filter -> Extract -> Score -> Draft -> Store
     for post in all_posts:

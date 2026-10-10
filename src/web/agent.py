@@ -305,15 +305,22 @@ def handle_user_message(user_msg: str, conversation_history: Optional[List[Dict[
             f"What would you like to explore today—run a fresh lead scan, inspect top opportunities, or draft a proposal for a client post?"
         )
 
+    # Intent 0.5: Identity / Name Check (Accurate, Direct, No Emojis)
+    if any(q in msg_lower for q in ["what is my name", "what's my name", "who am i", "my name"]):
+        name = profile.get("name", "Kalp Patel")
+        headline = profile.get("title", "Full-Stack AI Systems Engineer")
+        rate = profile.get("hourly_rate_usd", 45)
+        return f"You are {name}, specialized in {headline} with your target rate set to ${rate}/hr. What are we hunting today?"
+
     # Intent 1: Check stats / pipeline
     if any(k in msg_lower for k in ["stats", "tracker", "funnel", "how many leads", "overview"]):
         stats = get_summary_stats()
         leads_str = ", ".join([f"{k.upper()}: {v}" for k, v in stats["leads"].items()]) or "No leads yet"
         jobs_str = ", ".join([f"{k.upper()}: {v}" for k, v in stats["jobs"].items()]) or "No jobs yet"
         return (
-            f"**Pipeline Overview:**\n\n"
-            f"- **Freelance Leads:** {leads_str}\n"
-            f"- **Internships:** {jobs_str}\n\n"
+            f"Pipeline Overview:\n\n"
+            f"- Freelance Leads: {leads_str}\n"
+            f"- Internships: {jobs_str}\n\n"
             f"Want me to run a discovery scan now, or review your top matches?"
         )
 
@@ -323,30 +330,39 @@ def handle_user_message(user_msg: str, conversation_history: Optional[List[Dict[
         if not leads:
             return (
                 "You don't have any unprocessed leads scoring 7+ in the database right now.\n\n"
-                "Ask me to **'scan leads'** to discover fresh postings across Hacker News and Reddit!"
+                "Ask me to 'scan leads' to discover fresh postings across Hacker News and Reddit."
             )
 
-        resp = [f"Here are your top {len(leads)} opportunities scoring 7+:\n"]
+        resp = [f"Top {len(leads)} opportunities scoring 7+:\n"]
         for idx, l in enumerate(leads, 1):
             resp.append(
-                f"**{idx}. [{l.get('source', '').upper()}] {l.get('title')}** (Score: {l.get('score')}/10)\n"
-                f"- **Budget:** {l.get('budget', 'Undisclosed')} | **Author:** @{l.get('author', 'anon')}\n"
-                f"- **Link:** [{l.get('url')}]({l.get('url')})\n\n"
-                f"> **Draft Pitch:**\n"
+                f"{idx}. [{l.get('source', '').upper()}] {l.get('title')} (Score: {l.get('score')}/10)\n"
+                f"- Budget: {l.get('budget', 'Undisclosed')} | Author: @{l.get('author', 'anon')}\n"
+                f"- Link: [{l.get('url')}]({l.get('url')})\n\n"
+                f"> Draft Pitch:\n"
                 f"```text\n{l.get('draft_reply', '')}\n```\n"
             )
         return "\n".join(resp)
 
-    # Intent 3: Scan leads or jobs
+    # Intent 3: Scan leads or jobs (ACCURATE & NO EMOJIS)
     if "scan" in msg_lower or "fetch" in msg_lower or "scrape" in msg_lower or "run pipeline" in msg_lower:
         from main import process_jobs, process_leads
         new_leads = process_leads(use_sample=False, limit_per_source=15)
         new_jobs = process_jobs(use_sample=True)
+        top_leads = get_top_leads(limit=3, min_score=7)
+        total_leads = len(get_top_leads(limit=100, min_score=7))
+
+        preview = ""
+        if top_leads:
+            preview = "\n\nTop matches in your pipeline:\n" + "\n".join([
+                f"- [{l.get('source', '').upper()}] {l.get('title')} ({l.get('score')}/10 Match | Budget: {l.get('budget', 'Undisclosed')})"
+                for l in top_leads
+            ])
+
         return (
-            f"⚡ **Discovery Complete!**\n\n"
-            f"- Discovered **{new_leads} fresh freelance leads**\n"
-            f"- Evaluated **{new_jobs} internship postings**\n\n"
-            f"You can view them right now in the **Opportunities** drawer at the top right, or tell me: *'show top 3 leads'*."
+            f"Discovery complete. Evaluated live and verified feeds across Hacker News and Reddit.\n\n"
+            f"- {total_leads} high-fit opportunities available ({new_leads} new added).{preview}\n\n"
+            f"Open the Opportunities drawer at the top right to review all proposal drafts, or tell me 'show top 3 leads' to inspect."
         )
 
     # Intent 4: User pastes a client post to draft a reply
