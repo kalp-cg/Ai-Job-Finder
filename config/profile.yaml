@@ -1,0 +1,27 @@
+name: Kalp Patel
+title: Full-Stack AI Systems Engineer | LLM Agents & Scalable Backends
+github: https://github.com/kalppatel
+hourly_rate_usd: 45
+minimum_project_budget_usd: 300
+stipend_minimum_monthly_usd: 500
+skills:
+  primary:
+  - Python
+  - FastAPI
+  - Next.js
+  - PostgreSQL
+  ai_and_ml:
+  - LLM Agents
+  - RAG Pipelines
+  - Vector Search
+  - Prompt Engineering
+  infrastructure:
+  - Docker
+  - Git
+  - Database Optimization
+preferences:
+  roles:
+  - Full-Stack Developer
+  - Backend Engineer
+  - AI Engineer
+  availability_hours_per_week: 25
