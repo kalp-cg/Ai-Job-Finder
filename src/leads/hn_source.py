@@ -35,70 +35,103 @@ def clean_html(raw_html: str) -> str:
 
 
 class HackerNewsSource:
-    ALGOLIA_URL = "https://hn.algolia.com/api/v1/search_by_date"
+    """
+    Reads the monthly HN threads posted by the 'whoishiring' account:
+    - "Ask HN: Who is hiring?" (company job posts)
+    - "Ask HN: Freelancer? Seeking freelancer?" (only SEEKING FREELANCER comments)
+    Posts are pre-ranked by remote + skill overlap so the LLM only sees the best few.
+    """
+
+    SEARCH_URL = "https://hn.algolia.com/api/v1/search"
+    SEARCH_BY_DATE_URL = "https://hn.algolia.com/api/v1/search_by_date"
+    WORK_TYPE_RE = re.compile(r"\b(contract|contractor|freelance|part[- ]time|intern|internship)\b", re.I)
 
     def __init__(self):
         self.config = load_leads_config()
         self.hn_cfg = self.config.get("hacker_news", {})
-        self.max_age_hours = self.config.get("max_lead_age_hours", 48)
         self.blocked_keywords = [
             w.lower() for w in self.config.get("blocked_keywords", ["unpaid", "rev share"])
         ]
+        self.last_error: Optional[str] = None
 
-    def fetch_posts(self, query: str = "SEEKING FREELANCER", limit: int = 30) -> Generator[Dict[str, Any], None, None]:
-        """
-        Fetch comments and stories from the official HN Algolia search API.
-        Focuses on 'SEEKING FREELANCER' comments in monthly threads.
-        """
-        now_ts = int(datetime.now(timezone.utc).timestamp())
-        min_created_ts = now_ts - (self.max_age_hours * 3600)
+    def _latest_thread_id(self, title_prefix: str) -> Optional[str]:
+        resp = requests.get(
+            self.SEARCH_BY_DATE_URL,
+            params={"query": title_prefix, "tags": "story,ask_hn", "hitsPerPage": 10},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        for hit in resp.json().get("hits", []):
+            if (hit.get("title") or "").startswith(title_prefix):
+                return str(hit.get("objectID"))
+        return None
 
-        params = {
-            "query": query,
-            "tags": "(story,comment)",
-            "numericFilters": f"created_at_i>{min_created_ts}",
-            "hitsPerPage": limit,
-        }
+    def _top_level_comments(self, story_id: str) -> List[Dict[str, Any]]:
+        resp = requests.get(
+            self.SEARCH_URL,
+            params={"tags": f"comment,story_{story_id}", "hitsPerPage": 1000},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return [h for h in resp.json().get("hits", []) if str(h.get("parent_id")) == story_id]
 
-        try:
-            resp = requests.get(self.ALGOLIA_URL, params=params, timeout=10)
-            if resp.status_code != 200:
-                logger.error(f"HN Algolia API returned HTTP {resp.status_code}")
-                return
+    def _relevance(self, text_lower: str, skills: List[str]) -> int:
+        score = sum(1 for s in skills if s and s in text_lower)
+        if self.WORK_TYPE_RE.search(text_lower):
+            score += 2
+        return score
 
-            data = resp.json()
-            hits = data.get("hits", [])
+    def fetch_posts(self, skills: Optional[List[str]] = None, limit: int = 15) -> Generator[Dict[str, Any], None, None]:
+        """Yield the `limit` most relevant remote posts from this month's HN hiring threads."""
+        skills = [s.lower() for s in (skills or [])]
+        candidates = []
+        self.last_error = None
 
-            for hit in hits:
-                item_id = hit.get("objectID")
-                author = hit.get("author") or "anonymous"
-                story_title = hit.get("story_title") or hit.get("title") or "HN Lead"
-                comment_text = hit.get("comment_text") or hit.get("story_text") or ""
-                cleaned_text = clean_html(comment_text)
-
-                if not cleaned_text or len(cleaned_text) < 30:
+        threads = [
+            ("Ask HN: Who is hiring?", None),
+            ("Ask HN: Freelancer? Seeking freelancer?", "seeking freelancer"),
+        ]
+        for title_prefix, required_prefix in threads:
+            try:
+                story_id = self._latest_thread_id(title_prefix)
+                if not story_id:
                     continue
+                for hit in self._top_level_comments(story_id):
+                    text = clean_html(hit.get("comment_text") or "")
+                    text_lower = text.lower()
+                    if len(text) < 80:
+                        continue
+                    if required_prefix and not text_lower.startswith(required_prefix):
+                        continue
+                    if "remote" not in text_lower:
+                        continue
+                    if any(blocked in text_lower for blocked in self.blocked_keywords):
+                        continue
+                    candidates.append((self._relevance(text_lower, skills), hit, text))
+            except Exception as e:
+                self.last_error = str(e)
+                logger.error(f"Error reading HN thread '{title_prefix}': {e}")
 
-                # Filter out candidates offering services rather than hiring
-                text_lower = cleaned_text.lower()
-                if "seeking work" in text_lower or "[for hire]" in text_lower:
-                    continue
+        candidates.sort(key=lambda c: c[0], reverse=True)
+        for _, hit, text in candidates[:limit]:
+            item_id = str(hit.get("objectID"))
+            yield {
+                "source": "hn",
+                "post_id": item_id,
+                "title": headline_from_post(text),
+                "content": text,
+                "url": f"https://news.ycombinator.com/item?id={item_id}",
+                "author": hit.get("author") or "anonymous",
+                "created_utc": hit.get("created_at_i"),
+            }
 
-                if any(blocked in text_lower for blocked in self.blocked_keywords):
-                    continue
 
-                yield {
-                    "source": "hn",
-                    "post_id": str(item_id),
-                    "title": f"[HN] {story_title[:70]}",
-                    "content": cleaned_text,
-                    "url": f"https://news.ycombinator.com/item?id={item_id}",
-                    "author": author,
-                    "created_utc": hit.get("created_at_i", now_ts),
-                }
-
-        except Exception as e:
-            logger.error(f"Error querying HN Algolia API: {e}")
+def headline_from_post(text: str) -> str:
+    """HN hiring posts open with 'Company | Role | Location | ...'; use that first line as the title."""
+    first_line = text.strip().split("\n")[0]
+    parts = [p.strip() for p in first_line.split("|") if p.strip()]
+    title = " · ".join(parts[:3]) if parts else first_line
+    return title[:90]
 
 
 def get_sample_hn_posts() -> List[Dict[str, Any]]:

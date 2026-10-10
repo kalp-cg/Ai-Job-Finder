@@ -40,6 +40,7 @@ class RedditSource:
         self.user_agent = os.getenv("REDDIT_USER_AGENT", "JobAssistantBot/1.0 by local_user").strip()
 
         self._reddit = None
+        self.last_error: Optional[str] = None
         if self.client_id and self.client_secret:
             try:
                 import praw
@@ -107,6 +108,7 @@ class RedditSource:
 
             except Exception as e:
                 logger.error(f"Error fetching posts from r/{sub_name}: {e}")
+                self.last_error = "your API keys were rejected (HTTP 401). Create new ones at reddit.com/prefs/apps." if "401" in str(e) else str(e)
                 continue
 
 

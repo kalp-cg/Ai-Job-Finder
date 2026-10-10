@@ -45,6 +45,74 @@ def load_portfolio_text() -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
+SCAN_RE = re.compile(r"\b(scan|fetch|scrape|run pipeline|find new)\b")
+
+
+def is_scan_request(msg_lower: str) -> bool:
+    return bool(SCAN_RE.search(msg_lower)) and len(msg_lower) < 120
+
+
+def load_last_scan() -> Optional[Dict[str, Any]]:
+    path = DATA_DIR / "last_scan.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def handle_lead_message(user_msg: str, lead: Dict[str, Any], history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+    """
+    Chat about one specific lead. Returns {"reply": str, "draft": Optional[str]}.
+    `draft` is set only when the user asked for a new or changed reply.
+    """
+    llm = get_llm_client()
+    if not llm.is_available:
+        return {"reply": "Gemini isn't configured, so I can't work on this draft. Add GEMINI_API_KEY to .env.", "draft": None}
+
+    profile = load_profile_data()
+    skills = profile.get("skills") or {}
+    flat_skills = [s for group in skills.values() for s in (group or [])] if isinstance(skills, dict) else list(skills)
+    history_text = "\n".join(f"{t.get('role')}: {t.get('content')}" for t in (history or [])[-6:])
+
+    prompt = f"""You are helping {profile.get('name', 'the developer')} respond to one job/freelance post.
+
+CANDIDATE: {profile.get('title', '')}; skills: {', '.join(flat_skills)}; rate ${profile.get('hourly_rate_usd', 35)}/hr; work: {profile.get('github', '')}
+
+POST ({lead.get('source', '').upper()}, {lead.get('url', '')}):
+\"\"\"
+{(lead.get('raw_content') or lead.get('need') or '')[:4000]}
+\"\"\"
+
+WHY IT WAS SCORED {lead.get('score')}/10: {lead.get('score_reason', '')}
+
+CURRENT DRAFT REPLY:
+\"\"\"
+{lead.get('draft_reply', '')}
+\"\"\"
+
+RECENT CONVERSATION:
+{history_text}
+
+USER: {user_msg}
+
+Respond as JSON: {{"reply": "...", "draft": null}}
+- "reply": 1-3 plain sentences answering the user. No emojis, no lists unless asked.
+- "draft": the full new draft ONLY if the user asked to write, rewrite, shorten, or change the reply; otherwise null.
+  Drafts stay under 100 words, never invent experience or links beyond the candidate info above.
+"""
+    raw = llm.generate_text(prompt, system_instruction="Return ONLY valid JSON. No markdown fences.")
+    if not raw:
+        return {"reply": "Gemini didn't respond (likely the daily free quota). Try again later.", "draft": None}
+    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
+    try:
+        data = json.loads(raw)
+        return {"reply": str(data.get("reply") or "").strip(), "draft": (data.get("draft") or None)}
+    except Exception:
+        return {"reply": raw, "draft": None}
+
+
 def get_suggested_questions() -> List[str]:
     return [
         "Scan Reddit & Hacker News for new freelance leads",
@@ -290,45 +358,37 @@ def handle_user_message(user_msg: str, conversation_history: Optional[List[Dict[
     # Intent 0: Natural Greeting Handling (CONCISE & HUMAN, NO ESSAYS)
     greeting_words = ["hello", "hi", "hey", "sup", "yo", "good morning", "good evening", "hello!", "hey there"]
     if msg_lower in greeting_words or re.match(r"^(hi|hello|hey|yo)\b[!?.]*$", msg_lower):
-        has_resume = bool(load_resume_text())
-        has_linkedin = bool(profile.get("linkedin"))
-        has_github = bool(profile.get("github"))
+        first_name = (profile.get("name") or "").split(" ")[0] or "there"
+        waiting = [l for l in get_top_leads(limit=100, min_score=7, status="new") if "sample_" not in (l.get("url") or "")]
+        if not profile.get("github"):
+            return f"Hey {first_name}. Add your GitHub in Profile first, so the drafts can point to your real work."
+        if waiting:
+            return f"Hey {first_name}. {len(waiting)} {'post is' if len(waiting) == 1 else 'posts are'} waiting for a reply. Open one, or ask me to scan for more."
+        return f"Hey {first_name}. Nothing is waiting right now. Want me to scan for new posts?"
 
-        if not has_resume or not has_github:
-            return (
-                f"Hey {user_name}! I am SARTHI, your strategic career and opportunity navigator.\n\n"
-                f"Whenever you're ready, drop your Resume or link your GitHub / LinkedIn in the Profile modal at the top right to sharpen match accuracy.\n\n"
-                f"What are we targeting right now—freelance client contracts or software internships?"
-            )
+    # Intent 0.3: How SARTHI works / what it needs
+    if any(q in msg_lower for q in ["what parameters", "what do you need", "how do you work", "what info do you need"]):
         return (
-            f"Hey {user_name}! SARTHI is active and calibrated to your skills.\n\n"
-            f"What would you like to explore today—run a fresh lead scan, inspect top opportunities, or draft a proposal for a client post?"
+            "I use four things from your profile:\n\n"
+            "1. Your resume and skills, to judge fit.\n"
+            "2. Your GitHub or LinkedIn, so drafts point to real work.\n"
+            f"3. Your rate floor (${profile.get('hourly_rate_usd', 35)}/hr, min ${profile.get('minimum_project_budget_usd', 250)} project), to skip lowball posts.\n"
+            "4. Sources: Hacker News hiring threads, plus Reddit once your keys work.\n\n"
+            "Update any of these from Profile."
         )
 
-    # Intent 0.3: Parameter Calibration / Setup Inquiry
-    if any(q in msg_lower for q in ["parameter", "parameters", "what do you need", "how do you work", "what info", "setup"]):
+    # Intent 0.4: Agent identity
+    if any(q in msg_lower for q in ["who are you", "what is sarthi", "about you"]):
         return (
-            "SARTHI navigates opportunities using 4 core calibration parameters:\n\n"
-            "1. Resume Intelligence: Extracts verified skills and past case studies to ensure high matchmaking fit.\n"
-            "2. Proof of Work: GitHub & LinkedIn URLs to cite real projects in proposal pitches.\n"
-            "3. Target Rate & Budget Floor: Filters out lowball postings (currently set to $35/hr, min $250).\n"
-            "4. Market Scope: Live discovery across Hacker News and Reddit.\n\n"
-            "Drop your Resume directly onto the card above or click Profile Setup to calibrate."
-        )
-
-    # Intent 0.4: Agent Identity (Who are you / What is Sarthi)
-    if any(q in msg_lower for q in ["who are you", "what is your name", "what is sarthi", "about you"]):
-        return (
-            "I am SARTHI, your strategic opportunity navigator. Like a trusted charioteer in the competitive freelance and career arena, "
-            "I scout Hacker News and Reddit 24/7, evaluate high-budget postings against your skills, and craft tailored, winning proposals."
+            "I'm SARTHI. When you run a scan, I read Hacker News hiring threads (and Reddit, once connected), "
+            "score each post against your profile, and draft a short reply. You review and send everything yourself."
         )
 
     # Intent 0.5: Identity / Name Check (Accurate, Direct, No Emojis)
-    if any(q in msg_lower for q in ["what is my name", "what's my name", "who am i", "my name"]):
-        name = profile.get("name", "Kalp Patel")
-        headline = profile.get("title", "Full-Stack AI Systems Engineer")
-        rate = profile.get("hourly_rate_usd", 45)
-        return f"You are {name}, specialized in {headline} with your target rate set to ${rate}/hr. What are we hunting today?"
+    if any(q in msg_lower for q in ["what is my name", "what's my name", "who am i"]):
+        if not profile.get("name"):
+            return "I don't know your name yet. Add it in Profile."
+        return f"You're {profile['name']}, {profile.get('title', 'developer')}, with your rate set to ${profile.get('hourly_rate_usd', 35)}/hr."
 
     # Intent 1: Check stats / pipeline
     if any(k in msg_lower for k in ["stats", "tracker", "funnel", "how many leads", "overview"]):
@@ -342,49 +402,27 @@ def handle_user_message(user_msg: str, conversation_history: Optional[List[Dict[
             f"Want me to run a discovery scan now, or review your top matches?"
         )
 
-    # Intent 2: View top leads
+    # Intent 2: View top leads (real ones only)
     if any(k in msg_lower for k in ["show leads", "top leads", "view leads", "latest leads", "find leads", "show opportunities"]):
-        leads = get_top_leads(limit=5, min_score=7, status="new")
+        leads = [l for l in get_top_leads(limit=100, min_score=7, status="new") if "sample_" not in (l.get("url") or "")][:5]
         if not leads:
-            return (
-                "You don't have any unprocessed leads scoring 7+ in the database right now.\n\n"
-                "Ask me to 'scan leads' to discover fresh postings across Hacker News and Reddit."
-            )
+            return "Nothing scoring 7+ is waiting. Ask me to scan for new posts."
+        lines = [f"- **{l.get('score')}/10** {l.get('title')}" for l in leads]
+        return "Your best open posts:\n\n" + "\n".join(lines)
 
-        resp = [f"Top {len(leads)} opportunities scoring 7+:\n"]
-        for idx, l in enumerate(leads, 1):
-            resp.append(
-                f"{idx}. [{l.get('source', '').upper()}] {l.get('title')} (Score: {l.get('score')}/10)\n"
-                f"- Budget: {l.get('budget', 'Undisclosed')} | Author: @{l.get('author', 'anon')}\n"
-                f"- Link: [{l.get('url')}]({l.get('url')})\n\n"
-                f"> Draft Pitch:\n"
-                f"```text\n{l.get('draft_reply', '')}\n```\n"
-            )
-        return "\n".join(resp)
-
-    # Intent 3: Scan leads or jobs (ACCURATE & NO EMOJIS)
-    if "scan" in msg_lower or "fetch" in msg_lower or "scrape" in msg_lower or "run pipeline" in msg_lower:
-        from main import process_jobs, process_leads
-        new_leads = process_leads(use_sample=False, limit_per_source=15)
-        new_jobs = process_jobs(use_sample=True)
-        top_leads = get_top_leads(limit=3, min_score=7)
-        total_leads = len(get_top_leads(limit=100, min_score=7))
-
-        preview = ""
-        if top_leads:
-            preview = "\n\nTop matches in your pipeline:\n" + "\n".join([
-                f"- [{l.get('source', '').upper()}] {l.get('title')} ({l.get('score')}/10 Match | Budget: {l.get('budget', 'Undisclosed')})"
-                for l in top_leads
-            ])
-
+    # Intent 3: Scan (the web UI runs scans itself via /api/pipeline/run; this path serves the CLI)
+    if is_scan_request(msg_lower):
+        from main import process_leads
+        saved = process_leads(use_sample=False, limit_per_source=15)
+        report = load_last_scan() or {}
+        notes = [f"{name.upper()}: {info['error']}" for name, info in report.get("sources", {}).items() if info.get("error")]
         return (
-            f"Discovery complete. Evaluated live and verified feeds across Hacker News and Reddit.\n\n"
-            f"- {total_leads} high-fit opportunities available ({new_leads} new added).{preview}\n\n"
-            f"Open the Opportunities drawer at the top right to review all proposal drafts, or tell me 'show top 3 leads' to inspect."
+            f"Scan finished. Checked {report.get('checked', 0)} posts, {saved} new ones fit you."
+            + ("\n\n" + "\n".join(notes) if notes else "")
         )
 
     # Intent 4: User pastes a client post to draft a reply
-    if ("client says" in msg_lower or "post:" in msg_lower or "reply to this" in msg_lower or len(user_msg_clean) > 200):
+    if "client says" in msg_lower or "post:" in msg_lower or "reply to this" in msg_lower or len(user_msg_clean) > 400:
         extracted = extract_lead({"title": "Client Job Request", "content": user_msg_clean, "url": "custom_chat_input", "author": "client"})
         if extracted and extracted.is_paid_work:
             scored = score_lead(extracted)
@@ -413,6 +451,7 @@ STRICT RESPONSE RULES:
 3. Be remarkably concise, human, and direct (1-3 sentences max).
 4. Zero emojis in output.
 5. If they ask about jobs or freelance work, answer directly and suggest ONE crisp next step.
+6. You cannot change settings, send messages, or apply anywhere. For rate, skills, or links, tell them to edit Profile. Never claim you did something you can't do.
 """
 
     if llm.is_available:
@@ -427,6 +466,6 @@ STRICT RESPONSE RULES:
             return response.strip()
 
     return (
-        f"I am SARTHI, your opportunity navigator. I'm here to help you identify contracts, evaluate internships, and draft winning proposals.\n\n"
-        f"Ask me to 'scan leads', 'show top opportunities', or paste a job post to generate a custom proposal."
+        "I can't reach Gemini right now, so I can only handle simple commands.\n\n"
+        "Try 'scan', 'show top leads', or 'stats'."
     )

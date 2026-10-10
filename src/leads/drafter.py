@@ -12,6 +12,7 @@ NEVER sends automatically.
 
 import logging
 from pathlib import Path
+import yaml
 import re
 from typing import Any, Dict, Optional
 
@@ -29,19 +30,12 @@ def load_portfolio_markdown() -> str:
 
 
 def pick_best_project_link(extraction: LeadExtraction) -> str:
-    """Select the most relevant project URL based on extracted tech and need."""
-    tech_str = " ".join(extraction.tech).lower()
-    need_str = extraction.need.lower()
-    combined = f"{tech_str} {need_str}"
-
-    if any(k in combined for k in ["rag", "embedding", "vector", "document", "knowledge"]):
-        return "https://github.com/example/fastrag-assistant"
-    elif any(k in combined for k in ["next", "react", "frontend", "mvp", "landing", "stripe", "saas"]):
-        return "https://github.com/example/nextlaunch-saas"
-    elif any(k in combined for k in ["scrape", "api", "ingestion", "sync", "microservice", "crawler"]):
-        return "https://github.com/example/api-hub-service"
-    else:
-        return "https://github.com/example/job-ai-project"
+    """Return the candidate's real proof-of-work link from config/profile.yaml (never a placeholder)."""
+    profile_path = Path(__file__).resolve().parent.parent.parent / "config" / "profile.yaml"
+    if profile_path.exists():
+        profile = yaml.safe_load(profile_path.read_text(encoding="utf-8")) or {}
+        return profile.get("github") or profile.get("linkedin") or ""
+    return ""
 
 
 def heuristic_draft_reply(extraction: LeadExtraction, author: str) -> str:
@@ -51,25 +45,21 @@ def heuristic_draft_reply(extraction: LeadExtraction, author: str) -> str:
 
     # Part 1: Understand problem
     greeting = f"Hi @{author}," if author and author != "anonymous" else "Hi,"
-    p1 = f"{greeting} saw you're looking for help with {need_summary}."
+    p1 = f"{greeting} I read your post about {need_summary}."
 
     # Part 2: Concrete suggestion or question
-    if any(t.lower() in ["fastapi", "python"] for t in extraction.tech):
-        p2 = "To prevent webhook drops and latency spikes, adding async workers or Redis queues usually isolates ingestion cleanly."
-    elif any(t.lower() in ["next.js", "react"] for t in extraction.tech):
-        p2 = "For rapid MVP launches, pairing Next.js server actions with Supabase keeps auth and billing hooks lightweight."
-    elif any(t.lower() in ["rag", "llm", "gemini"] for t in extraction.tech):
-        p2 = "Chunking markdown by semantic headings before vector search prevents losing context in query citations."
+    if extraction.tech:
+        p2 = f"I work daily with {', '.join(extraction.tech[:3])}. What would the first few weeks of work focus on?"
     else:
-        p2 = "Would you prefer a standalone script or a containerized microservice that plugs directly into your existing stack?"
+        p2 = "What would the first few weeks of work focus on?"
 
     # Part 3: Proof of work link
-    p3 = f"I built a similar open-source architecture here: {link}"
+    p3 = f"You can see my recent work here: {link}" if link else ""
 
     # Part 4: Clear next step
     p4 = "Happy to share a quick 3-step plan. Want me to send it over?"
 
-    draft = f"{p1}\n\n{p2}\n\n{p3}\n\n{p4}"
+    draft = "\n\n".join(p for p in [p1, p2, p3, p4] if p)
     return draft
 
 
@@ -106,7 +96,7 @@ STRICT QUALITY RULES:
 2. Structure into exactly 4 parts:
    - Part 1: One line showing you read their post and understood their specific problem.
    - Part 2: One concrete, helpful technical suggestion or insightful question about their requirement.
-   - Part 3: One link to a similar project you built ({best_link}).
+   - Part 3: One line pointing to the candidate's real work at {best_link} (do not invent other links or projects).
    - Part 4: A clear next step (e.g., "Happy to share a quick plan, want me to send it?").
 3. Tone: Humble, direct, professional. No buzzwords, no pushy sales pitching, no fluff.
 4. Do not invent fake claims.

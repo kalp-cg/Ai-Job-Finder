@@ -124,7 +124,7 @@ Scoring Rules (0 to 10 scale):
 - 5-6: Weak skill overlap or vague budget.
 - 0-4: Completely out of stack, unrealistic budget, or low value.
 
-Assign an overall score 0-10, component scores, and a concise 1-2 sentence reason.
+Assign an overall score 0-10, component scores, and a concise 1-2 sentence reason written directly to the developer as "you" (e.g. "Your Python and Docker work fits..."), never "the developer" or "the lead".
 """
 
     system_instruction = (

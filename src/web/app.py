@@ -10,10 +10,13 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from src.core.db import get_summary_stats, get_top_jobs, get_top_leads, update_lead_status
+from src.core.db import get_lead, get_summary_stats, get_top_leads, update_lead_draft, update_lead_status
 from src.web.agent import (
     get_suggested_questions,
+    handle_lead_message,
     handle_user_message,
+    is_scan_request,
+    load_last_scan,
     load_portfolio_text,
     load_profile_data,
     load_resume_text,
@@ -39,6 +42,11 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[Dict[str, str]]] = []
+    lead_id: Optional[int] = None
+
+
+class DraftRequest(BaseModel):
+    draft: str
 
 
 class OnboardRequest(BaseModel):
@@ -106,24 +114,54 @@ def onboard_profile(req: OnboardRequest):
 
 @app.post("/api/chat")
 def chat_endpoint(req: ChatRequest):
-    if not req.message.strip():
+    message = req.message.strip()
+    if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
-    reply = handle_user_message(req.message, req.history)
-    return {"reply": reply}
+    if req.lead_id is not None:
+        lead = get_lead(req.lead_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return handle_lead_message(message, lead, req.history)
+    if is_scan_request(message.lower()):
+        return {"reply": None, "action": "scan"}
+    return {"reply": handle_user_message(message, req.history)}
+
+
+def is_sample_url(url: str) -> bool:
+    return "sample_" in (url or "")
 
 
 @app.get("/api/leads")
-def list_leads(limit: int = 20, min_score: int = 7):
+def list_leads(limit: int = 200, min_score: int = 7):
     leads = get_top_leads(limit=limit, min_score=min_score)
+    for lead in leads:
+        lead["is_sample"] = is_sample_url(lead.get("url", ""))
     return {"leads": leads}
 
 
 @app.post("/api/leads/{lead_id}/status")
 def update_status(lead_id: int, req: UpdateStatusRequest):
-    success = update_lead_status(lead_id, req.status, notes=req.notes)
+    try:
+        success = update_lead_status(lead_id, req.status, notes=req.notes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not success:
         raise HTTPException(status_code=404, detail="Lead not found")
     return {"status": "success", "lead_id": lead_id, "new_status": req.status}
+
+
+@app.put("/api/leads/{lead_id}/draft")
+def save_draft(lead_id: int, req: DraftRequest):
+    if not update_lead_draft(lead_id, req.draft.strip()):
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"status": "success"}
+
+
+@app.get("/api/status")
+def system_status():
+    """Honest health of each data source and the LLM, plus the last scan report."""
+    from src.core.llm import get_llm_client
+    return {"gemini": get_llm_client().is_available, "last_scan": load_last_scan()}
 
 
 @app.get("/api/stats")
@@ -133,11 +171,6 @@ def stats():
 
 @app.post("/api/pipeline/run")
 def run_pipeline():
-    from main import process_jobs, process_leads
-    new_leads = process_leads(use_sample=False, limit_per_source=15)
-    new_jobs = process_jobs(use_sample=True)
-    return {
-        "status": "success",
-        "new_leads_count": new_leads,
-        "new_jobs_count": new_jobs,
-    }
+    from main import process_leads
+    saved = process_leads(use_sample=False, limit_per_source=15)
+    return {"status": "success", "new_leads_count": saved, "report": load_last_scan()}

@@ -21,3 +21,4 @@ data/assistant.db
 .idea/
 .DS_Store
 *.swp
+data/last_scan.json

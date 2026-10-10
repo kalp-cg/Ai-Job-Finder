@@ -8,10 +8,14 @@ NEVER posts, DMs, applies, or sends anything automatically.
 """
 
 import argparse
+from datetime import datetime, timezone
+import json
 import logging
 import sys
 from pathlib import Path
 from typing import List
+
+import yaml
 
 from src.core.db import (
     get_summary_stats,
@@ -44,42 +48,63 @@ logging.basicConfig(
 logger = logging.getLogger("job_assistant")
 
 
+LAST_SCAN_PATH = Path(__file__).resolve().parent / "data" / "last_scan.json"
+
+
+def load_profile_skills() -> List[str]:
+    """Flatten all skill groups from config/profile.yaml for relevance ranking."""
+    profile_path = Path(__file__).resolve().parent / "config" / "profile.yaml"
+    if not profile_path.exists():
+        return []
+    profile = yaml.safe_load(profile_path.read_text(encoding="utf-8")) or {}
+    skills = profile.get("skills") or {}
+    if isinstance(skills, dict):
+        return [s for group in skills.values() for s in (group or [])]
+    return list(skills)
+
+
 def process_leads(use_sample: bool = False, limit_per_source: int = 15) -> int:
     """Run freelance lead collection, extraction, scoring, and drafting."""
     logger.info(f"Starting Freelance Lead Finder (mode: {'SAMPLE' if use_sample else 'LIVE'})...")
     saved_count = 0
 
+    scan_report = {"started_at": datetime.now(timezone.utc).isoformat(), "sample": use_sample, "sources": {}}
+
     # 1. Collect candidate posts from Reddit
     reddit_posts = []
     reddit_source = RedditSource()
 
-    if use_sample or not reddit_source.is_configured:
-        if not use_sample:
-            logger.info("Reddit API credentials not detected; using sample posts for demonstration.")
+    if use_sample:
         reddit_posts = get_sample_reddit_posts()
+    elif not reddit_source.is_configured:
+        logger.info("Reddit API credentials not detected; skipping Reddit.")
+        scan_report["sources"]["reddit"] = {"ok": False, "fetched": 0, "error": "not connected. Add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to .env."}
     else:
         logger.info("Querying Reddit via PRAW in read-only mode...")
         reddit_posts = list(reddit_source.fetch_posts(limit_per_sub=limit_per_source))
         logger.info(f"Fetched {len(reddit_posts)} raw candidate posts from Reddit.")
+        scan_report["sources"]["reddit"] = {
+            "ok": reddit_source.last_error is None,
+            "fetched": len(reddit_posts),
+            "error": reddit_source.last_error,
+        }
 
-    # 2. Collect candidate posts from Hacker News
+    # 2. Collect candidate posts from Hacker News monthly hiring threads
     hn_posts = []
     hn_source = HackerNewsSource()
     if use_sample:
         hn_posts = get_sample_hn_posts()
     else:
-        logger.info("Querying Hacker News via official Algolia API...")
-        try:
-            hn_posts = list(hn_source.fetch_posts(query="SEEKING FREELANCER", limit=limit_per_source))
-            logger.info(f"Fetched {len(hn_posts)} raw candidate comments/stories from Hacker News.")
-        except Exception as e:
-            logger.error(f"Failed to fetch from Hacker News: {e}")
-            hn_posts = []
+        logger.info("Reading Hacker News hiring threads via official Algolia API...")
+        hn_posts = list(hn_source.fetch_posts(skills=load_profile_skills(), limit=limit_per_source))
+        logger.info(f"Fetched {len(hn_posts)} candidate posts from Hacker News.")
+        scan_report["sources"]["hn"] = {
+            "ok": hn_source.last_error is None,
+            "fetched": len(hn_posts),
+            "error": hn_source.last_error,
+        }
 
     all_posts = reddit_posts + hn_posts
-    if not all_posts:
-        logger.info("Live feeds returned 0 new items; loading verified discovery benchmark feed.")
-        all_posts = get_sample_reddit_posts() + get_sample_hn_posts()
 
     # 3. Process each post through Filter -> Extract -> Score -> Draft -> Store
     for post in all_posts:
@@ -130,6 +155,12 @@ def process_leads(use_sample: bool = False, limit_per_source: int = 15) -> int:
             logger.info(f"Saved Lead #{lead_id} (Score: {score_res.score}/10): {post.get('title', '')[:50]}")
 
     logger.info(f"Finished processing leads. {saved_count} new high-fit leads saved.")
+    scan_report["finished_at"] = datetime.now(timezone.utc).isoformat()
+    scan_report["checked"] = len(all_posts)
+    scan_report["saved"] = saved_count
+    if not use_sample:
+        LAST_SCAN_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LAST_SCAN_PATH.write_text(json.dumps(scan_report, indent=2), encoding="utf-8")
     return saved_count
 
 

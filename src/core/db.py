@@ -220,6 +220,33 @@ def update_lead_status(
     return updated
 
 
+def update_lead_draft(lead_id: int, draft: str, db_path: Optional[Path] = None) -> bool:
+    """Save an edited draft reply for a lead."""
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cursor.execute("UPDATE leads SET draft_reply = ?, updated_at = ? WHERE id = ?", (draft, now, lead_id))
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def get_lead(lead_id: int, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Fetch a single lead by id."""
+    conn = get_db_connection(db_path)
+    row = conn.execute("SELECT * FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    lead = dict(row)
+    try:
+        lead["tech"] = json.loads(lead.get("tech") or "[]")
+    except Exception:
+        lead["tech"] = []
+    return lead
+
+
 def is_job_seen(url: str, db_path: Optional[Path] = None) -> bool:
     """Check if a job URL has already been processed."""
     conn = get_db_connection(db_path)
