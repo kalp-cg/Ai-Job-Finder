@@ -33,6 +33,9 @@
       <button class="btn btn-primary" id="btn-scan" onclick="runScan()">
         <i data-lucide="radar"></i><span>Scan</span>
       </button>
+      <button class="btn btn-quiet" onclick="showPage('companies')" title="Companies you watch">
+        <i data-lucide="building-2"></i><span class="hide-narrow">Companies</span>
+      </button>
       <button class="btn btn-quiet icon-only" onclick="showPage('settings')" title="Settings"><i data-lucide="sliders-horizontal"></i></button>
       <button class="btn btn-quiet" onclick="showPage('profile')">
         <i data-lucide="user-round"></i><span id="profile-name">Profile</span>
@@ -138,6 +141,39 @@
         </form>
       </section>
 
+      <!-- Companies page -->
+      <section class="page" id="page-companies" hidden>
+        <div class="page-head">
+          <button class="link-btn" onclick="closePage()"><i data-lucide="arrow-left"></i>Back</button>
+          <h2>Companies</h2>
+          <p class="muted">SARTHI checks each company's own careers board on every scan and puts roles that fit you in your queue.</p>
+        </div>
+
+        <h3 class="section-title">Your watchlist</h3>
+        <form class="company-add" onsubmit="addCompany(event)">
+          <input id="c-name" placeholder="Company name" required>
+          <input id="c-site" placeholder="Website (optional)">
+          <button class="btn btn-quiet" type="submit"><i data-lucide="plus"></i>Watch</button>
+        </form>
+        <p class="muted small" id="c-status"></p>
+        <div id="w-list"></div>
+
+        <h3 class="section-title">Find companies in a city</h3>
+        <p class="muted">Software companies mapped on OpenStreetMap, listed on Wikidata, or hiring through Y Combinator. Pick the ones to watch.</p>
+        <form class="company-add" onsubmit="findCity(event)">
+          <input id="d-city" placeholder="Any city or area, like Pune or GIFT City" list="d-cities" required>
+          <datalist id="d-cities"></datalist>
+          <button class="btn btn-quiet" type="submit" id="btn-find"><i data-lucide="search"></i>Find</button>
+        </form>
+        <div class="chips city-chips" id="d-quick"></div>
+        <p class="muted small" id="d-status"></p>
+        <div id="d-results"></div>
+
+        <h3 class="section-title">Everything SARTHI checks</h3>
+        <div id="s-companies"></div>
+        <p class="muted small attribution">Company data: &copy; OpenStreetMap contributors (ODbL), Wikidata (CC0) and Y Combinator's public list. SARTHI never uses Google Maps; its terms forbid it.</p>
+      </section>
+
       <!-- Settings page -->
       <section class="page" id="page-settings" hidden>
         <div class="page-head">
@@ -160,14 +196,7 @@
         <p class="muted small">SARTHI never opens LinkedIn, Internshala, Naukri, Wellfound or Indeed; their terms forbid automated access. Jobs from LinkedIn, Internshala and Naukri come only from the alert emails they send you.</p>
 
         <h3 class="section-title">Companies</h3>
-        <p class="muted">SARTHI watches these companies' own careers boards directly. Add any company, or paste a LinkedIn hiring post in chat.</p>
-        <form class="company-add" onsubmit="addCompany(event)">
-          <input id="c-name" placeholder="Company name" required>
-          <input id="c-site" placeholder="Website (optional)">
-          <button class="btn btn-quiet" type="submit"><i data-lucide="plus"></i>Watch</button>
-        </form>
-        <p class="muted small" id="c-status"></p>
-        <div id="s-companies"></div>
+        <p class="muted">Your watchlist and the company finder have their own page. <button class="link-btn inline" onclick="showPage('companies')">Open Companies</button></p>
 
         <h3 class="section-title">Email</h3>
         <div id="s-email"></div>

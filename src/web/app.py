@@ -673,6 +673,11 @@ class CompanyRequest(BaseModel):
     website: Optional[str] = None
 
 
+class BulkCompaniesRequest(BaseModel):
+    city: str
+    companies: List[CompanyRequest]
+
+
 @app.get("/api/companies")
 def get_companies():
     rows = [r for r in list_companies() if r["discovery_state"] != "duplicate"]
@@ -690,6 +695,30 @@ def get_companies():
 @app.post("/api/companies")
 def post_company(req: CompanyRequest):
     return track_reply(req.name.strip(), (req.website or "").strip() or None)
+
+
+@app.get("/api/discover")
+def discover_city(city: str, refresh: bool = False):
+    """Software companies in a city from OpenStreetMap, Wikidata and the YC list."""
+    from src.opportunities.discover import find_companies
+    try:
+        return find_companies(city, refresh=refresh)
+    except (LookupError, ValueError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        from src.opportunities.sources import plain_error
+        raise HTTPException(status_code=502, detail=plain_error(e))
+
+
+@app.post("/api/companies/bulk")
+def watch_companies(req: BulkCompaniesRequest):
+    """Add many companies at once. Their careers boards are found on the next scans, a batch per scan."""
+    from src.core.db import add_company
+    added = sum(1 for c in req.companies[:500]
+                if c.name.strip() and add_company(c.name.strip()[:120], website=(c.website or "").strip() or None,
+                                                  origin="city", location_hint=req.city.strip()[:80]))
+    pending = sum(1 for c in list_companies() if c["discovery_state"] == "pending")
+    return {"added": added, "pending": pending}
 
 
 @app.delete("/api/companies/{company_id}")

@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (linked) selectItem(linked);
   else if (location.hash === '#profile') showPage('profile');
   else if (location.hash === '#settings') showPage('settings');
+  else if (location.hash === '#companies') showPage('companies');
   setInterval(poll, 30000);
 });
 
@@ -1014,25 +1015,26 @@ async function deleteAlert(id) {
   renderSettings();
 }
 
-/* ---------------- Pages: profile & settings ---------------- */
+/* ---------------- Pages: profile, settings & companies ---------------- */
+
+const PAGES = ['profile', 'settings', 'companies'];
 
 function showPage(name) {
   state.page = name;
   $('thread').hidden = true;
   $('composer').hidden = true;
-  $('page-profile').hidden = name !== 'profile';
-  $('page-settings').hidden = name !== 'settings';
+  PAGES.forEach((p) => { $(`page-${p}`).hidden = p !== name; });
   history.replaceState(null, '', `#${name}`);
   if (name === 'profile') fillProfile();
   if (name === 'settings') renderSettings();
+  if (name === 'companies') renderCompaniesPage();
   refreshIcons();
 }
 
 function closePage(render = true) {
   if (!state.page) return;
   state.page = null;
-  $('page-profile').hidden = true;
-  $('page-settings').hidden = true;
+  PAGES.forEach((p) => { $(`page-${p}`).hidden = true; });
   $('thread').hidden = false;
   $('composer').hidden = false;
   if (render) {
@@ -1119,8 +1121,6 @@ SMTP_USER=you@gmail.com
 SMTP_PASSWORD=your 16-character app password</pre>
        <p class="muted small">Gmail needs an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App Password</a>, which requires 2-step verification. Your normal password won't work.</p>`;
 
-  renderCompanies();
-
   const alerts = s.alerts || [];
   $('s-alerts').innerHTML = alerts.length
     ? alerts.map((a) => `
@@ -1132,24 +1132,147 @@ SMTP_PASSWORD=your 16-character app password</pre>
   refreshIcons();
 }
 
+const ATS_LABEL = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', smartrecruiters: 'SmartRecruiters',
+  recruitee: 'Recruitee', workday: 'Workday', yc: 'YC', jsonld: 'careers page', html: 'careers page' };
+// Shortcuts only: any city or area works. Cities from your search preferences come first.
+const POPULAR_CITIES = ['Bengaluru', 'Pune', 'Hyderabad', 'Delhi', 'Gurugram', 'Noida', 'Mumbai', 'Chennai', 'Ahmedabad', 'GIFT City', 'Kolkata', 'Jaipur'];
+const WATCHED_BY_YOU = new Set(['user', 'city']);
+
+function companyRowHtml(c, { removable }) {
+  const board = c.ats ? ATS_LABEL[c.ats] || c.ats : c.discovery_state === 'pending' ? 'finding board' : 'no public board';
+  return `
+    <div class="company-row">
+      <span class="company-name" title="${escapeAttr(c.location_hint || '')}">${escapeHtml(c.name)}</span>
+      <span class="mono small muted">${board}</span>
+      <span class="mono small ${c.last_matches ? '' : 'muted'}">${c.ats && c.last_open_roles !== null ? `${c.last_matches ?? 0} fit / ${c.last_open_roles} open` : ''}</span>
+      <span class="mono small muted">${c.next_check_at && c.ats ? `next ${dueIn(c.next_check_at)}` : ''}</span>
+      ${removable ? `<button class="link-btn" onclick="removeCompany(${c.id})" title="Stop watching"><i data-lucide="x"></i></button>` : '<span></span>'}
+    </div>`;
+}
+
+function renderCompaniesPage() {
+  const mine = ((state.profile.search || {}).locations || []).filter((l) => !/^(remote|india)$/i.test(l));
+  const cities = [...new Set([...mine, ...POPULAR_CITIES])];
+  $('d-cities').innerHTML = cities.map((c) => `<option value="${escapeAttr(c)}">`).join('');
+  $('d-quick').innerHTML = cities.slice(0, 12).map((c) =>
+    `<button type="button" class="chip" data-city="${escapeAttr(c)}" onclick="findCity(null, this.dataset.city)">${escapeHtml(c)}</button>`).join('');
+  if (state.cityResult) renderCityResults();
+  renderCompanies();
+}
+
 async function renderCompanies() {
   const data = await api('/api/companies').catch(() => null);
   if (!data) return;
-  const atsLabel = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', smartrecruiters: 'SmartRecruiters',
-    recruitee: 'Recruitee', workday: 'Workday', yc: 'YC', jsonld: 'careers page', html: 'careers page' };
-  const rows = data.companies.filter((c) => c.ats || c.origin === 'user').slice(0, 60);
+  const watchlist = data.companies.filter((c) => WATCHED_BY_YOU.has(c.origin))
+    .sort((a, b) => (b.last_matches || 0) - (a.last_matches || 0) || !!b.ats - !!a.ats || a.name.localeCompare(b.name));
+  $('w-list').innerHTML = watchlist.length
+    ? `<p class="mono small muted">${watchlist.length} watched · ${watchlist.filter((c) => c.ats).length} boards found · ${watchlist.filter((c) => c.discovery_state === 'pending').length} still finding</p>
+       <div class="company-list">${watchlist.map((c) => companyRowHtml(c, { removable: true })).join('')}</div>`
+    : '<p class="muted">Nothing on your watchlist yet. Add a company above, or find some in a city below.</p>';
+
+  const rows = data.companies.filter((c) => c.ats || WATCHED_BY_YOU.has(c.origin)).slice(0, 80);
   $('s-companies').innerHTML = `
     <p class="mono small muted">${data.total} companies · ${data.boards} boards found · ${data.pending} still to check · ${data.not_found} without a public board</p>
-    <div class="company-list">${rows.map((c) => `
-      <div class="company-row">
-        <span class="company-name">${escapeHtml(c.name)}</span>
-        <span class="mono small muted">${c.ats ? atsLabel[c.ats] : c.discovery_state === 'pending' ? 'checking soon' : 'no public board'}</span>
-        <span class="mono small ${c.last_matches ? '' : 'muted'}">${c.ats && c.last_open_roles !== null ? `${c.last_matches ?? 0} saved / ${c.last_open_roles} open` : ''}</span>
-        <span class="mono small muted">${c.next_check_at && c.ats ? `next ${dueIn(c.next_check_at)}` : ''}</span>
-        ${c.origin === 'user' ? `<button class="link-btn" onclick="removeCompany(${c.id})" title="Stop watching"><i data-lucide="x"></i></button>` : '<span></span>'}
-      </div>`).join('')}</div>
+    <div class="company-list">${rows.map((c) => companyRowHtml(c, { removable: WATCHED_BY_YOU.has(c.origin) })).join('')}</div>
     ${missingBoardsHtml(data.companies)}`;
   refreshIcons();
+}
+
+/* ---------------- City finder ---------------- */
+
+async function findCity(e, city) {
+  e?.preventDefault();
+  city = (city || $('d-city').value).trim();
+  if (!city) return;
+  $('d-city').value = city;
+  const btn = $('btn-find');
+  btn.disabled = true;
+  $('d-status').innerHTML = `<svg class="chakra spinning small inline-mark"><use href="#chakra" /></svg> Looking up software companies in ${escapeHtml(city)}. This takes 10 to 30 seconds.`;
+  $('brand-chakra').classList.add('spinning');
+  $('d-results').innerHTML = '';
+  try {
+    state.cityResult = await api(`/api/discover?city=${encodeURIComponent(city)}`);
+    state.cityResult.onlyWithSite = true;
+    renderCityResults();
+  } catch (err) {
+    state.cityResult = null;
+    $('d-status').textContent = `Couldn't search ${city}: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    $('brand-chakra').classList.toggle('spinning', !!state.status?.scanning || state.scanning);
+  }
+}
+
+function cityRows() {
+  const r = state.cityResult;
+  return r.companies.filter((c) => !r.onlyWithSite || c.website);
+}
+
+function renderCityResults() {
+  const r = state.cityResult;
+  const all = r.companies;
+  const counts = Object.entries(r.counts).map(([k, v]) => `${k} ${v}`).join(', ');
+  const notes = [r.note, ...Object.entries(r.errors || {}).map(([k, v]) => `${k} was skipped: ${v}`)].filter(Boolean);
+  $('d-status').innerHTML = `Found <b class="num">${all.length}</b> in ${escapeHtml(r.place)} (${escapeHtml(counts)}). ` +
+    `<b class="num">${all.filter((c) => c.watching).length}</b> already watched.` +
+    (notes.length ? `<br>${notes.map(escapeHtml).join('<br>')}` : '');
+  if (!all.length) {
+    $('d-results').innerHTML = '<p class="muted">No software companies are listed there yet. Try the nearest big city.</p>';
+    return;
+  }
+  const rows = cityRows();
+  const open = rows.filter((c) => !c.watching);
+  $('d-results').innerHTML = `
+    <div class="finder-bar">
+      <label class="check-line"><input type="checkbox" id="d-all" onchange="selectAllCity(this.checked)" ${open.length ? '' : 'disabled'}>Select all</label>
+      <label class="check-line"><input type="checkbox" ${r.onlyWithSite ? 'checked' : ''} onchange="state.cityResult.onlyWithSite = this.checked; renderCityResults()">Only ones with a website (${all.filter((c) => c.website).length})</label>
+      <span class="spacer"></span>
+      <button class="btn btn-primary" id="btn-watch-city" onclick="watchSelected()" disabled><i data-lucide="plus"></i>Watch selected</button>
+    </div>
+    <div class="company-list finder-list">${rows.slice(0, 500).map((c, n) => `
+      <label class="finder-row ${c.watching ? 'watched' : ''}">
+        <input type="checkbox" data-n="${n}" ${c.watching ? 'disabled' : ''} onchange="updateWatchButton()">
+        <span class="company-name">${escapeHtml(c.name)}</span>
+        <span class="mono small muted finder-site">${c.website ? escapeHtml(c.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')) : 'no website'}</span>
+        <span class="mono small muted">${c.watching ? 'watching' : escapeHtml(c.sources.join(', '))}</span>
+      </label>`).join('')}</div>`;
+  updateWatchButton();
+  refreshIcons();
+}
+
+function selectAllCity(on) {
+  document.querySelectorAll('.finder-row input:not(:disabled)').forEach((b) => { b.checked = on; });
+  updateWatchButton();
+}
+
+function updateWatchButton() {
+  const n = document.querySelectorAll('.finder-row input:checked').length;
+  const btn = $('btn-watch-city');
+  if (!btn) return;
+  btn.disabled = !n;
+  btn.innerHTML = `<i data-lucide="plus"></i>${n ? `Watch ${n} selected` : 'Watch selected'}`;
+  refreshIcons();
+}
+
+async function watchSelected() {
+  const rows = cityRows();
+  const picked = [...document.querySelectorAll('.finder-row input:checked')].map((b) => rows[Number(b.dataset.n)]);
+  if (!picked.length) return;
+  const btn = $('btn-watch-city');
+  btn.disabled = true;
+  try {
+    const res = await api('/api/companies/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ city: state.cityResult.city, companies: picked.map((c) => ({ name: c.name, website: c.website })) }),
+    });
+    picked.forEach((c) => { c.watching = true; });
+    renderCityResults();
+    $('d-status').innerHTML += `<br>Added <b class="num">${res.added}</b> to your watchlist. SARTHI finds their careers boards during scans, about 50 companies per scan (${res.pending} waiting now). Hit Scan to start.`;
+    renderCompanies();
+  } catch (err) {
+    btn.disabled = false;
+    $('d-status').textContent = `Couldn't add them: ${err.message}`;
+  }
 }
 
 /** Companies whose careers board SARTHI couldn't find. Pasting the right URL usually fixes it. */

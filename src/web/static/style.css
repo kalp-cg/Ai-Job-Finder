@@ -137,6 +137,7 @@ kbd {
   display: grid;
   grid-template-columns: 340px 1fr;
 }
+.workspace > * { min-width: 0; }
 
 /* ---------- Queue ---------- */
 .queue {
@@ -659,7 +660,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .company-list { margin-top: 8px; max-height: 420px; overflow-y: auto; border-top: 1px solid var(--line); }
 .company-row {
   display: grid;
-  grid-template-columns: 1fr 120px 110px 110px 20px;
+  grid-template-columns: minmax(0, 1fr) 110px 150px 110px 20px;
   gap: 10px;
   align-items: center;
   padding: 8px 2px;
@@ -667,6 +668,8 @@ input[type="checkbox"] { accent-color: var(--accent); }
   font-size: 13px;
 }
 .company-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-row.fix-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 64px 110px; }
+.company-add input { min-width: 0; }
 
 /* ---------- Narrow screens ---------- */
 @media (max-width: 860px) {
@@ -678,22 +681,50 @@ input[type="checkbox"] { accent-color: var(--accent); }
   .peek { padding-left: 0; }
   .company-row, .company-row.fix-row { grid-template-columns: 1fr auto; row-gap: 4px; }
   .company-row > :nth-child(n + 3) { grid-column: 1 / -1; }
+  .finder-row { grid-template-columns: 20px minmax(0, 1fr); }
+  .finder-row > :nth-child(n + 3) { grid-column: 2; }
   .card-title { font-size: 17px; }
 }
 
 /* ---------- Phones ---------- */
 @media (max-width: 520px) {
   .topbar { gap: 10px; padding: 0 10px; }
-  .brand-name { display: none; }
+  .brand-name, .hide-narrow { display: none; }
   .topbar-actions .btn { padding: 0 10px; }
   .workspace { grid-template-rows: 42vh 1fr; }
   .msg { gap: 10px; }
   .lead-card section { padding-left: 16px; padding-right: 16px; }
   .context-chip span { max-width: 70vw; }
+  .company-add { flex-wrap: wrap; }
+  .company-add input { flex: 1 1 100%; }
+  .company-add .btn { margin-left: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-.company-row.fix-row { grid-template-columns: 1fr 2fr 64px 110px; }
+/* ---------- Companies page ---------- */
+.city-chips { margin: 4px auto 10px; }
+button.chip { cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+button.chip:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.24); }
+.inline-mark { display: inline-block; vertical-align: -2px; margin-right: 4px; }
+.finder-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 8px; }
+.finder-bar .check-line { margin-top: 0; }
+.finder-bar .spacer { flex: 1; }
+.finder-list { max-height: 520px; }
+.finder-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  cursor: pointer;
+}
+.finder-row:hover { background: var(--hover); }
+.finder-row.watched { cursor: default; opacity: 0.55; }
+.finder-row.watched:hover { background: none; }
+.finder-site, .finder-row > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attribution { margin: 18px 0 40px; }
 a.btn { text-decoration: none; }
