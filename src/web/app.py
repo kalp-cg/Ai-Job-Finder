@@ -44,7 +44,7 @@ from src.opportunities import mailer
 from src.opportunities.normalize import canonical_skill, detect_kind, find_email, is_remote
 from src.opportunities.ranking import Query, learned_trust, parse_query, profile_query, rank
 from src.opportunities.refresh import is_running, lead_postings, refresh_sources
-from src.opportunities.sources import SOURCES
+from src.opportunities.sources import SOURCES, plain_error_text
 from src.opportunities.state import load_state, now_iso, update_state
 from src.web.agent import (
     draft_application_note,
@@ -749,7 +749,8 @@ def system_status():
         "resume_file": (mailer.resume_file().name if mailer.resume_file() else None),
         "scanning": is_running(),
         "settings": state["settings"],
-        "runs": state["runs"],
+        "runs": {k: {**r, "error": plain_error_text(r["error"]) if r.get("error") else r.get("error")}
+                 for k, r in state["runs"].items()},
         "alerts": state["alerts"],
         "last_auto_scan_at": state.get("last_auto_scan_at"),
         "sources": [{"key": k, "label": v["label"], "about": v["about"]} for k, v in SOURCES.items()],

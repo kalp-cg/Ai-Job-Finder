@@ -25,15 +25,21 @@ TIMEOUT = 25
 
 def plain_error(e: Exception) -> str:
     """One short sentence for the UI instead of a raw exception dump."""
-    text = str(e)
-    if isinstance(e, requests.exceptions.ConnectionError):
-        if "resolve" in text or "NameResolution" in text:
-            return "couldn't connect: no internet, or the address lookup (DNS) failed. It will retry on the next scan."
-        return "couldn't connect to the site. It will retry on the next scan."
     if isinstance(e, requests.exceptions.Timeout):
         return "the site took too long to answer. It will retry on the next scan."
     if isinstance(e, requests.exceptions.HTTPError) and e.response is not None:
         return f"the site answered with an error (HTTP {e.response.status_code}). It will retry on the next scan."
+    return plain_error_text(str(e), connection=isinstance(e, requests.exceptions.ConnectionError))
+
+
+def plain_error_text(text: str, connection: bool = False) -> str:
+    """Same, for an error already stored as text (runs saved before errors were made readable)."""
+    if "NameResolution" in text or "Failed to resolve" in text or "name resolution" in text:
+        return "couldn't connect: no internet, or the address lookup (DNS) failed. It will retry on the next scan."
+    if "timed out" in text.lower():
+        return "the site took too long to answer. It will retry on the next scan."
+    if connection or "HTTPSConnectionPool" in text or "Max retries exceeded" in text:
+        return "couldn't connect to the site. It will retry on the next scan."
     return text[:300]
 
 

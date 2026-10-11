@@ -190,3 +190,11 @@ class PlainErrorTest(unittest.TestCase):
         resp.status_code = 503
         self.assertIn("HTTP 503", plain_error(requests.exceptions.HTTPError(response=resp)))
         self.assertEqual(plain_error(ValueError("bad data")), "bad data")
+
+    def test_errors_saved_before_the_fix_are_cleaned_for_display(self):
+        from src.opportunities.sources import plain_error_text
+        raw = ("HTTPSConnectionPool(host='jobicy.com', port=443): Max retries exceeded with url: /api (Caused by "
+               "NameResolutionError(\"HTTPSConnection(host='jobicy.com'): Failed to resolve 'jobicy.com'\"))")
+        self.assertTrue(plain_error_text(raw).startswith("couldn't connect: no internet"))
+        self.assertIn("too long", plain_error_text("HTTPSConnectionPool(host='hn.algolia.com'): Read timed out."))
+        self.assertEqual(plain_error_text("your API keys were rejected (HTTP 401)."), "your API keys were rejected (HTTP 401).")

@@ -145,7 +145,10 @@ function renderSourceLine() {
     `<span class="source">${s.scanning ? 'Scanning now' : latest ? `Last scan ${timeAgo(latest)}` : 'No scan yet'}</span>`,
     `<span class="source ${interval ? 'ok' : ''}"><span class="dot"></span>${interval ? `Auto every ${formatInterval(interval)}` : 'Auto-scan off'}</span>`,
   ];
-  if (failing.length) parts.push(`<span class="source bad" title="Open Settings for details"><span class="dot"></span>${failing.join(', ')} off</span>`);
+  if (failing.length) {
+    const what = failing.length > 2 ? `${failing.length} sources off` : `${failing.join(', ')} off`;
+    parts.push(`<span class="source bad" title="${escapeAttr(failing.join(', '))}. Open Settings for details."><span class="dot"></span><span class="text">${what}</span></span>`);
+  }
   if (!s.gemini) parts.push(`<span class="source bad"><span class="dot"></span>Gemini off</span>`);
   $('source-line').innerHTML = parts.join('');
   $('brand-chakra').classList.toggle('spinning', !!s.scanning || state.scanning);
@@ -258,9 +261,12 @@ function briefing() {
   const why = queueStatsNote(state.queueStats);
   if (why) notes.push(why);
   const off = new Set(s?.settings?.disabled_sources || []);
+  // Sources that failed the same way (e.g. no internet) share one line.
+  const byError = new Map();
   for (const [key, r] of Object.entries(s?.runs || {})) {
-    if (!r.ok && r.error && !off.has(key)) notes.push(`${labelFor(key)} was skipped: ${r.error}`);
+    if (!r.ok && r.error && !off.has(key)) byError.set(r.error, [...(byError.get(r.error) || []), labelFor(key)]);
   }
+  for (const [error, names] of byError) notes.push(`${names.join(', ')} ${names.length === 1 ? 'was' : 'were'} skipped: ${error}`);
   if (s && !s.gemini) notes.push('Gemini is not configured, so drafts use plain templates.');
   if (s && !s.email) notes.push('Email sending is not set up yet. See Settings.');
   const samples = state.items.filter((i) => i.is_sample).length;
@@ -1375,6 +1381,8 @@ function scrollThread() {
 function autosize(el) {
   el.style.height = 'auto';
   el.style.height = `${el.scrollHeight + 2}px`;
+  // Only show a scrollbar once the text is taller than the box can grow (the composer stops at 180px).
+  el.style.overflowY = el.scrollHeight > el.clientHeight + 2 ? 'auto' : 'hidden';
 }
 
 function shorten(s, n) {
