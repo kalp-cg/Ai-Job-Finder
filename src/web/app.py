@@ -169,6 +169,12 @@ def lead_item(l: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def alert_site_label(external_id: Optional[str]) -> str:
+    """'linkedin:123' -> 'LinkedIn', so cards say where the job is and 'Open on LinkedIn' reads right."""
+    from src.opportunities.email_alerts import SITES
+    return SITES.get((external_id or "").split(":")[0], {}).get("label", "Job alert")
+
+
 def opp_item(o: Dict[str, Any]) -> Dict[str, Any]:
     reasons = o.get("reasons") or []
     return {
@@ -178,6 +184,7 @@ def opp_item(o: Dict[str, Any]) -> Dict[str, Any]:
         "source": o.get("source"),
         "source_label": (f"{o.get('company')} careers" if o.get("source") == "careers"
                          else f"{o.get('company')} on YC" if o.get("source") == "yc"
+                         else alert_site_label(o.get("external_id")) if o.get("source") == "alerts"
                          else SOURCE_LABELS.get(o.get("source"), o.get("source"))),
         "title": o.get("title"),
         "company": o.get("company"),

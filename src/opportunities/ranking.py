@@ -47,7 +47,7 @@ def remote_open_to(location: str, wanted: List[str]) -> bool:
 
 
 # How much to trust each source before any outcomes are known (0-1). Direct-from-company beats aggregators.
-SOURCE_PRIOR = {"careers": 1.0, "yc": 0.95, "simplify": 0.85, "hn": 0.8, "muse": 0.8, "reddit": 0.7,
+SOURCE_PRIOR = {"careers": 1.0, "yc": 0.95, "alerts": 0.9, "simplify": 0.85, "hn": 0.8, "muse": 0.8, "reddit": 0.7,
                 "remotive": 0.7, "remoteok": 0.7, "jobicy": 0.7, "himalayas": 0.7, "unstop": 0.45}
 RESPONDED = {"replied", "won", "interviewing", "offer"}
 APPLIED = RESPONDED | {"contacted", "applied", "rejected", "lost"}

@@ -4,7 +4,9 @@ or a published dataset, and each one's terms (credit the source, link to the ori
 modest request rates) are respected via SOURCES[...]['min_interval_minutes'] and source_label.
 
 Deliberately NOT included (their terms or robots.txt forbid automated access):
-LinkedIn, Internshala, Naukri, Wellfound/AngelList, Indeed, Glassdoor.
+LinkedIn, Internshala, Naukri, Wellfound/AngelList, Indeed, Glassdoor. SARTHI never fetches their pages.
+Jobs from LinkedIn, Internshala and Naukri arrive only through the job-alert emails they send to the user,
+read from the user's own inbox (see email_alerts.py).
 """
 
 import logging
@@ -12,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
+from src.opportunities.email_alerts import fetch_email_alerts
 from src.opportunities.normalize import make_item, parse_pay
 
 logger = logging.getLogger("sarthi.sources")
@@ -269,6 +272,9 @@ SOURCES: Dict[str, Dict[str, Any]] = {
                "about": "Remote engineering jobs."},
     "himalayas": {"label": "Himalayas", "fetch": fetch_himalayas, "min_interval_minutes": 120,
                   "about": "Remote jobs with location and salary details."},
+    "alerts": {"label": "Job alert emails", "fetch": fetch_email_alerts, "min_interval_minutes": 30,
+               "about": "Jobs from the LinkedIn, Internshala and Naukri alert emails in your inbox, read-only. "
+                        "SARTHI never opens those sites. Uses the Gmail app password from .env."},
 }
 
 FetchFn = Callable[[Optional[str]], List[Dict[str, Any]]]
