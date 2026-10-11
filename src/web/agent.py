@@ -111,7 +111,7 @@ def draft_application_note(item: Dict[str, Any]) -> str:
     skills = profile.get("skills") or {}
     flat_skills = [s for group in skills.values() for s in (group or [])] if isinstance(skills, dict) else list(skills)
     matched = [s for s in item.get("skills") or [] if s.lower() in " ".join(flat_skills).lower()][:3]
-    links = "\n".join(filter(None, [profile.get("github"), profile.get("linkedin")]))
+    links = "\n".join(filter(None, [profile.get("portfolio"), profile.get("github"), profile.get("linkedin")]))
 
     llm = get_llm_client()
     if llm.is_available:
@@ -233,6 +233,17 @@ def get_suggested_questions() -> List[str]:
     ]
 
 
+def pdf_links(reader) -> List[str]:
+    """Web links (not mailto) embedded in a PDF, in page order, without duplicates."""
+    links: List[str] = []
+    for page in reader.pages:
+        for annot in page.get("/Annots") or []:
+            uri = (annot.get_object().get("/A") or {}).get("/URI")
+            if isinstance(uri, str) and uri.startswith("http") and uri not in links:
+                links.append(uri)
+    return links
+
+
 def parse_resume_file(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     """
     Extracts text from an uploaded resume (PDF, TXT, MD) and uses LLM
@@ -247,6 +258,10 @@ def parse_resume_file(file_bytes: bytes, filename: str) -> Dict[str, Any]:
             reader = pypdf.PdfReader(io.BytesIO(file_bytes))
             pages = [page.extract_text() or "" for page in reader.pages]
             text_content = "\n".join(pages)
+            links = pdf_links(reader)
+            if links:
+                # Link text like "GitHub | Live" loses its URL in plain text; keep the URLs so drafts can cite them.
+                text_content += "\n\nLinks in this resume:\n" + "\n".join(f"- {u}" for u in links)
         except Exception as e:
             logger.error(f"Error parsing PDF with pypdf: {e}")
             return {"error": f"Failed to parse PDF: {str(e)}"}
@@ -324,6 +339,10 @@ def onboard_user_profile(
     - data/portfolio.md
     """
     llm = get_llm_client()
+    # An uploaded resume is the source of truth; the bio box is only used when there isn't one.
+    from src.opportunities.mailer import resume_file
+    uploaded = resume_file() is not None
+    background = load_resume_text() if uploaded else resume_or_bio
 
     analysis_prompt = f"""You are an elite developer career and freelance advisor.
 Analyze this developer's information and structure it into a clean profile.
@@ -333,13 +352,15 @@ Inputs:
 - Skills: {skills_input}
 - GitHub: {github_url}
 - LinkedIn: {linkedin_url}
-- Resume / Bio / Past work: {resume_or_bio}
+- Resume / Bio / Past work: {background[:6000]}
 - Hourly Rate: ${hourly_rate}/hr
 - Min Project Budget: ${min_budget}
 
 Tasks:
 1. Categorize skills into primary, ai_and_ml, and infrastructure.
-2. Formulate 2-3 compelling case studies with problem, solution, outcome, and keywords based on their past work or projects.
+2. Write up to 4 case studies, one per real project or job named in the resume / bio. Use only facts stated there:
+   never invent projects, metrics, clients or outcomes. If no outcome is stated, describe what was built instead.
+   Use the project's own link from the resume when it has one, otherwise the GitHub URL. No projects stated: return [].
 3. Provide a brief professional headline and summary.
 
 Return ONLY a valid JSON object strictly matching this schema:
@@ -382,16 +403,7 @@ Return ONLY a valid JSON object strictly matching this schema:
             "primary_skills": skills_list[:5] or ["Python", "FastAPI"],
             "ai_skills": ["LLM Integration", "RAG"],
             "infra_skills": ["Docker", "Git"],
-            "case_studies": [
-                {
-                    "title": "Production Web & API Platform",
-                    "problem": "Client needed a high-performance backend with clean documentation.",
-                    "solution": "Built modular FastAPI architecture with automated background pipelines.",
-                    "outcome": "Fast response times and seamless client delivery.",
-                    "keywords": "FastAPI, Python",
-                    "link": github_url,
-                }
-            ],
+            "case_studies": [],  # without Gemini we can't summarise projects, and we never invent them
             "recommendations": "Highlight specific business metrics and past API integration projects.",
         }
 
@@ -415,9 +427,10 @@ Return ONLY a valid JSON object strictly matching this schema:
         },
     }
 
-    existing_search = load_profile_data().get("search")
-    if existing_search:
-        profile_yaml_content["search"] = existing_search
+    existing = load_profile_data()
+    for key, value in existing.items():
+        if key not in profile_yaml_content:
+            profile_yaml_content[key] = value  # e.g. search preferences, portfolio URL
 
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(CONFIG_DIR / "profile.yaml", "w", encoding="utf-8") as f:
@@ -440,10 +453,13 @@ Return ONLY a valid JSON object strictly matching this schema:
 {resume_or_bio}
 """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    (DATA_DIR / "resume.md").write_text(resume_md_content, encoding="utf-8")
+    if not uploaded:  # an uploaded resume's full text stays; drafts and interview prep read it
+        (DATA_DIR / "resume.md").write_text(resume_md_content, encoding="utf-8")
 
     # 3. Update data/portfolio.md
     portfolio_md_lines = ["# Freelance Portfolio & Case Studies\n"]
+    if not profile_obj.get("case_studies"):
+        portfolio_md_lines.append(f"No case studies written yet. See the resume and {github_url}.\n")
     for idx, cs in enumerate(profile_obj.get("case_studies", []), 1):
         portfolio_md_lines.append(f"### Case Study {chr(64 + idx)}: {cs.get('title')}")
         portfolio_md_lines.append(f"- **Problem:** {cs.get('problem')}")

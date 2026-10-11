@@ -5,6 +5,7 @@ Every test runs against a throwaway database and state file, never data/.
 Run: python -m unittest discover -s tests
 """
 
+import io
 import sqlite3
 import tempfile
 import unittest
@@ -249,6 +250,12 @@ class ApplyingToolsTest(TempDataCase):
         self.assertNotIn("Python", gap)
         self.assertNotIn("Data Analysis Tools", gap)  # not a known skill, so not claimed as a gap
 
+    def test_skill_gap_uses_all_profile_skills_not_just_the_ranking_top_12(self):
+        many = [f"Skill{n}" for n in range(12)] + ["Docker"]
+        ref = f"opp:{self.add_opp(skills=['Docker'])}"
+        with mock.patch.object(web, "load_profile_data", return_value={"skills": {"primary": many}}):
+            self.assertEqual(self.client.get(f"/api/items/{ref}").json()["missing_skills"], [])
+
     def test_follow_up_draft_mentions_role_and_send_date(self):
         ref = f"opp:{self.add_opp(title='Backend Intern')}"
         db.record_outreach(ref, "jobs@example.com", "Application", "Hi", None, ok=True)
@@ -299,6 +306,65 @@ class RedditSwitchTest(TempDataCase):
     def test_reddit_is_fetched_when_on(self):
         state_mod.update_state(lambda s: s["settings"].__setitem__("disabled_sources", []))
         self.run_lead_scan().fetch_posts.assert_called_once()
+
+
+class ResumeAndProfileTest(TempDataCase):
+    def setUp(self):
+        super().setUp()
+        tmp = Path(self.tmp.name)
+        (tmp / "config").mkdir()
+        import src.web.agent as agent
+        import src.opportunities.mailer as mailer
+        self.agent = agent
+        self.more = [mock.patch.object(agent, "DATA_DIR", tmp), mock.patch.object(agent, "CONFIG_DIR", tmp / "config"),
+                     mock.patch.object(mailer, "DATA_DIR", tmp),
+                     mock.patch.object(agent, "get_llm_client", return_value=mock.Mock(is_available=False))]
+        for p in self.more:
+            p.start()
+        self.dir = tmp
+
+    def tearDown(self):
+        for p in self.more:
+            p.stop()
+        super().tearDown()
+
+    def save_profile(self):
+        self.agent.onboard_user_profile(name="Kalp", skills_input="Python", github_url="https://github.com/kalp-cg",
+                                        resume_or_bio="Short bio.")
+
+    def test_saving_profile_keeps_uploaded_resume_and_extra_fields(self):
+        (self.dir / "resume.pdf").write_bytes(b"%PDF-1.4")
+        (self.dir / "resume.md").write_text("Full resume with PGRadar and DhanPath AI", encoding="utf-8")
+        (self.dir / "config" / "profile.yaml").write_text("portfolio: https://kalppatel.me\n", encoding="utf-8")
+        self.save_profile()
+        self.assertIn("PGRadar", (self.dir / "resume.md").read_text(encoding="utf-8"))
+        self.assertEqual(self.agent.load_profile_data()["portfolio"], "https://kalppatel.me")
+
+    def test_saving_profile_never_invents_case_studies(self):
+        self.save_profile()
+        portfolio = (self.dir / "portfolio.md").read_text(encoding="utf-8")
+        self.assertNotIn("FastAPI architecture", portfolio)
+        self.assertIn("No case studies written yet", portfolio)
+
+    def test_bio_only_users_still_get_a_resume_file(self):
+        self.save_profile()
+        self.assertIn("Short bio.", (self.dir / "resume.md").read_text(encoding="utf-8"))
+
+    def test_pdf_links_are_extracted(self):
+        import pypdf
+        from pypdf.generic import DictionaryObject, NameObject, TextStringObject, ArrayObject
+        writer = pypdf.PdfWriter()
+        page = writer.add_blank_page(200, 200)
+        def link(uri):
+            return writer._add_object(DictionaryObject({
+                NameObject("/Type"): NameObject("/Annot"), NameObject("/Subtype"): NameObject("/Link"),
+                NameObject("/Rect"): ArrayObject([]),
+                NameObject("/A"): DictionaryObject({NameObject("/S"): NameObject("/URI"), NameObject("/URI"): TextStringObject(uri)})}))
+        page[NameObject("/Annots")] = ArrayObject([link("https://github.com/kalp-cg/PgRadar"), link("mailto:x@y.z"),
+                                                    link("https://github.com/kalp-cg/PgRadar")])
+        buf = io.BytesIO()
+        writer.write(buf)
+        self.assertEqual(self.agent.pdf_links(pypdf.PdfReader(io.BytesIO(buf.getvalue()))), ["https://github.com/kalp-cg/PgRadar"])
 
 
 class AlertsOverLeadsTest(TempDataCase):

@@ -222,7 +222,10 @@ def mark_watching(items: List[Dict[str, Any]]) -> None:
 
 def mark_skill_gap(items: List[Dict[str, Any]]) -> None:
     """missing_skills: known tech skills the post asks for that aren't in your profile."""
-    mine = {s.lower() for s in profile_query(load_profile_data()).skills}
+    # Every profile skill, not profile_query's top 12 (that cap is for ranking only).
+    skills_cfg = load_profile_data().get("skills") or {}
+    listed = [s for group in skills_cfg.values() for s in (group or [])] if isinstance(skills_cfg, dict) else list(skills_cfg)
+    mine = {(canonical_skill(s) or s).lower() for s in listed}
     for it in items:
         gap = []
         for raw in it.get("skills") or []:
