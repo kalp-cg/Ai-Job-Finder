@@ -190,6 +190,37 @@ class QueueStatsTest(TempDataCase):
         self.assertEqual(stats["shown"] + sum(counted.values()), stats["open"])
 
 
+class WatchingTest(TempDataCase):
+    def test_items_say_whether_their_company_is_watched(self):
+        watched = self.add_opp("w", "Backend Intern", company="Acme Technologies")
+        other = self.add_opp("o", "Backend Intern", company="Globex")
+        db.add_company("Acme", ats="greenhouse", slug="acme")
+        db.add_company("Globex", origin="user")  # discovery not finished, so not watched yet
+
+        self.assertTrue(self.client.get(f"/api/items/opp:{watched}").json()["watching"])
+        self.assertFalse(self.client.get(f"/api/items/opp:{other}").json()["watching"])
+        listed = {i["ref"]: i["watching"] for i in self.client.get("/api/items").json()["items"]}
+        self.assertTrue(listed[f"opp:{watched}"])
+
+
+    def test_track_command_works_inside_a_post_thread(self):
+        ref = f"opp:{self.add_opp()}"
+        with mock.patch.object(web, "track_reply", return_value={"reply": "Watching", "results": []}) as tr, \
+             mock.patch.object(web, "handle_lead_message") as lead_chat:
+            self.client.post("/api/chat", json={"message": "track acme.com", "item_ref": ref})
+            self.client.post("/api/chat", json={"message": "make it shorter", "item_ref": ref})
+        tr.assert_called_once_with("Acme", "https://acme.com")
+        lead_chat.assert_called_once()
+
+
+    def test_parse_track_request(self):
+        self.assertEqual(web.parse_track_request("track acme.com"), ("Acme", "https://acme.com"))
+        self.assertEqual(web.parse_track_request("track www.globex.co.in"), ("Globex", "https://www.globex.co.in"))
+        self.assertEqual(web.parse_track_request("watch https://initech.io/careers"), ("Initech", "https://initech.io/careers"))
+        self.assertEqual(web.parse_track_request("track Stripe"), ("Stripe", None))
+        self.assertEqual(web.parse_track_request("track Node.js Inc"), ("Node.js Inc", None))
+
+
 class AlertsOverLeadsTest(TempDataCase):
     def test_alert_counts_new_matching_lead(self):
         self.add_lead()

@@ -202,7 +202,7 @@ kbd {
   padding: 0 5px;
 }
 
-.tag-due {
+.tag-flag {
   font: 500 10px var(--mono);
   letter-spacing: 0.06em;
   color: var(--text);
@@ -532,7 +532,9 @@ select { color: var(--text); background: var(--surface); }
 .btn.icon-only { padding: 0 9px; }
 
 /* ---------- Card extras ---------- */
-.card-company { color: var(--text-2); margin-top: 4px; }
+.card-company { color: var(--text-2); margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.watch-btn { font-size: 12.5px; }
+.watch-btn .chakra.small { display: inline-block; }
 .email-grid { display: grid; grid-template-columns: 64px 1fr; gap: 8px 10px; align-items: center; }
 .email-grid label { font-size: 12px; color: var(--text-3); }
 .email-grid input, .cap-input, .setting-row select {

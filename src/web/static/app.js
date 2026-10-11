@@ -101,7 +101,17 @@ function visibleItems(tab = state.tab) {
       i.tab === tab &&
       (state.kind === 'all' || i.kind === state.kind) &&
       (state.showSamples || !i.is_sample))
-    .sort((a, b) => isDue(b) - isDue(a) || (b.score ?? -1) - (a.score ?? -1));
+    .sort((a, b) => (isDue(b) || isClosingSoon(b)) - (isDue(a) || isClosingSoon(a)) || (b.score ?? -1) - (a.score ?? -1));
+}
+
+const CLOSING_SOON_DAYS = 3;
+
+/** Still new and its application deadline is within CLOSING_SOON_DAYS. */
+function isClosingSoon(i) {
+  const d = parseDate(i.deadline);
+  if (!d || i.status !== 'new') return 0;
+  const left = d - Date.now();
+  return left >= 0 && left <= CLOSING_SOON_DAYS * 86400000 ? 1 : 0;
 }
 
 /** Waiting on a reply and the follow-up day has arrived. */
@@ -177,7 +187,8 @@ function rowHtml(i) {
       <span class="lead-title">${escapeHtml(i.title)}${i.company ? `<span class="row-company"> · ${escapeHtml(i.company)}</span>` : ''}</span>
       <span class="lead-meta">
         ${i.is_sample ? '<span class="tag-sample">SAMPLE</span>' : ''}
-        ${isDue(i) ? '<span class="tag-due">FOLLOW UP</span>' : ''}
+        ${isDue(i) ? '<span class="tag-flag">FOLLOW UP</span>' : ''}
+        ${isClosingSoon(i) ? `<span class="tag-flag">CLOSES ${dueIn(i.deadline).toUpperCase()}</span>` : ''}
         <span>${escapeHtml(i.source_label)}</span>
         ${i.pay_text ? `<span>${escapeHtml(shorten(i.pay_text, 22))}</span>` : ''}
         ${i.contact_email ? '<span class="meta-mail" title="Accepts email applications"><i data-lucide="mail"></i></span>' : ''}
@@ -229,6 +240,10 @@ function briefing() {
     lines.push('Open one to read it and apply, or ask me for something specific.');
   } else {
     lines.push(`${hello} Nothing new is waiting.${sent ? ` You've applied to ${sent} so far.` : ''} Run a scan, or ask me for something specific.`);
+  }
+  const closing = real.filter((i) => isClosingSoon(i) && (state.kind === 'all' || i.kind === state.kind));
+  if (closing.length) {
+    lines.push(`${closing.length === 1 ? 'One post closes' : `${closing.length} posts close`} within ${CLOSING_SOON_DAYS} days, so ${closing.length === 1 ? "it's" : "they're"} at the top of New.`);
   }
   const due = real.filter(isDue);
   if (due.length) {
@@ -315,7 +330,7 @@ function itemCardHtml(i) {
       <section>
         <div class="card-meta">${i.is_sample ? '<span class="tag-sample">SAMPLE</span>' : ''}${closed}${meta.map((m) => `<span>${m}</span>`).join('')}</div>
         <h2 class="card-title">${escapeHtml(i.title)}</h2>
-        ${i.company ? `<p class="card-company">${escapeHtml(i.company)}</p>` : ''}
+        ${i.company ? `<p class="card-company">${escapeHtml(i.company)}${watchHtml(i)}</p>` : ''}
         ${tech ? `<div class="chips">${tech}</div>` : ''}
       </section>
       ${i.why ? `
@@ -372,6 +387,35 @@ function emailSectionHtml(i) {
     </div>
     <label class="check-line"><input type="checkbox" id="mail-attach" ${s.resume_file ? 'checked' : 'disabled'}>
       ${s.resume_file ? `Attach my resume (${escapeHtml(s.resume_file)})` : 'No resume file yet. Upload one in Profile to attach it.'}</label>`;
+}
+
+function watchHtml(i) {
+  if (i.type !== 'opp') return '';
+  return i.watching
+    ? '<span class="watch-state mono small muted">Watching for new roles</span>'
+    : `<button class="link-btn watch-btn" id="btn-watch" onclick="watchCompany()"><i data-lucide="eye"></i>Watch for new roles</button>`;
+}
+
+/** Find this company's careers board and check it on every scan. Takes a few seconds. */
+async function watchCompany() {
+  const item = itemByRef(state.selected);
+  const btn = $('btn-watch');
+  if (!item || !btn) return;
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="chakra spinning small"><use href="#chakra" /></svg>Looking for ${escapeHtml(item.company)}'s careers board`;
+  try {
+    const res = await api('/api/companies', { method: 'POST', body: JSON.stringify({ name: item.company }) });
+    (res.results || []).forEach((r) => { if (!itemByRef(r.ref)) state.extra[r.ref] = r; });
+    await Promise.all([loadItems(), loadStatus()]);
+    const fresh = await api(`/api/items/${item.ref}`).catch(() => null);
+    if (fresh) item.watching = fresh.watching;
+    renderQueue();
+    renderStage();
+    pushMessage(item.ref, { role: 'ai', text: res.reply, results: (res.results || []).filter((r) => r.ref !== item.ref) });
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = `Couldn't watch it: ${err.message}`;
+  }
 }
 
 function followUpSectionHtml(i) {

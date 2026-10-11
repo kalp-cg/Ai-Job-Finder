@@ -201,6 +201,19 @@ def opp_item(o: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def watched_companies() -> set:
+    """Normalized names of companies with a careers board (or YC page) SARTHI already checks."""
+    from src.opportunities.companies import _norm
+    return {_norm(c["name"]) for c in list_companies() if c["ats"] and c["discovery_state"] != "duplicate"}
+
+
+def mark_watching(items: List[Dict[str, Any]]) -> None:
+    from src.opportunities.companies import _norm
+    watched = watched_companies()
+    for it in items:
+        it["watching"] = bool(it.get("company")) and _norm(it["company"]) in watched
+
+
 def current_trust(opps: List[Dict[str, Any]]) -> Dict[str, float]:
     """Source trust learned from your own outcomes on feed postings and HN/Reddit leads."""
     leads = [{"source": l["source"], "status": l["status"]} for l in get_top_leads(limit=1000, min_score=0) if "sample_" not in (l.get("url") or "")]
@@ -351,6 +364,7 @@ def list_items():
     sent = outreach_by_ref()
     for it in items:
         it["outreach"] = sent.get(it["ref"], [])
+    mark_watching(items)
     # Why the rest of the open postings aren't in the queue, so the briefing can say it plainly.
     queue_stats = {"open": len(open_new), "shown": len(ranked), "limit": QUEUE_SIZE, "min_score": QUEUE_MIN_SCORE,
                    "disabled_sources": len(open_new) - len(fresh), **filtered}
@@ -361,6 +375,7 @@ def list_items():
 def item_detail(ref: str):
     item = get_item(ref)
     item["outreach"] = outreach_for(ref)
+    mark_watching([item])
     return item
 
 
@@ -463,6 +478,10 @@ def chat_endpoint(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     if req.item_ref:
+        # An explicit "track example.com" still works inside a post's thread (SARTHI suggests it there).
+        target = parse_track_request(message) if TRACK_RE.match(message) else None
+        if target:
+            return track_reply(*target)
         item = get_item(req.item_ref)
         return handle_lead_message(message, item, req.history)
 
@@ -503,6 +522,8 @@ def parse_track_request(message: str):
     m = TRACK_RE.match(message)
     if m and len(m.group(1)) < 80:
         target = m.group(1).strip().rstrip(".")
+        if re.fullmatch(r"(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:/\S*)?", target, re.I):
+            target = f"https://{target}"  # a bare domain like "example.com" is a website, not a name
         if URL_RE.match(target):
             host = re.sub(r"^www\.", "", target.split("/")[2])
             return (host.split(".")[0].capitalize(), target)
