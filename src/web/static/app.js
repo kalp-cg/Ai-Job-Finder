@@ -138,7 +138,8 @@ function renderSourceLine() {
   const s = state.status;
   if (!s) return;
   const latest = Object.values(s.runs || {}).map((r) => r.finished_at).sort().pop();
-  const failing = Object.entries(s.runs || {}).filter(([, r]) => !r.ok).map(([k]) => labelFor(k));
+  const off = new Set(s.settings?.disabled_sources || []);
+  const failing = Object.entries(s.runs || {}).filter(([k, r]) => !r.ok && !off.has(k)).map(([k]) => labelFor(k));
   const interval = s.settings?.scan_interval_minutes;
   const parts = [
     `<span class="source">${s.scanning ? 'Scanning now' : latest ? `Last scan ${timeAgo(latest)}` : 'No scan yet'}</span>`,
@@ -256,8 +257,9 @@ function briefing() {
   if (pipeline) notes.push(pipeline);
   const why = queueStatsNote(state.queueStats);
   if (why) notes.push(why);
+  const off = new Set(s?.settings?.disabled_sources || []);
   for (const [key, r] of Object.entries(s?.runs || {})) {
-    if (!r.ok && r.error) notes.push(`${labelFor(key)} was skipped: ${r.error}`);
+    if (!r.ok && r.error && !off.has(key)) notes.push(`${labelFor(key)} was skipped: ${r.error}`);
   }
   if (s && !s.gemini) notes.push('Gemini is not configured, so drafts use plain templates.');
   if (s && !s.email) notes.push('Email sending is not set up yet. See Settings.');
@@ -1078,20 +1080,21 @@ function renderSettings() {
   const disabled = new Set(s.settings?.disabled_sources || []);
   const allSources = [...(s.sources || []),
     { key: 'hn', label: 'Hacker News', about: "Monthly 'Who is hiring' and freelancer threads, scored with Gemini." },
-    { key: 'reddit', label: 'Reddit', about: 'r/forhire and similar. Needs valid API keys in .env.' },
+    { key: 'reddit', label: 'Reddit', about: 'r/forhire and similar. Needs API keys in .env, which Reddit now grants only after you register and are approved.' },
     { key: 'companies', label: 'Company careers boards', about: 'Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Workday, YC and plain careers pages, read directly.' }];
   $('s-sources').innerHTML = allSources.map((src) => {
     const run = s.runs?.[src.key];
-    const statusText = !run ? 'Not run yet'
+    const statusText = disabled.has(src.key) ? 'Turned off'
+      : !run ? 'Not run yet'
       : run.ok ? `${run.fetched} fetched, ${run.new} new · ${timeAgo(run.finished_at)}`
       : `Failed: ${run.error}`;
-    const toggleable = !['hn', 'reddit'].includes(src.key);
+    const toggleable = src.key !== 'hn';
     return `
       <div class="source-item">
         <div>
           <b>${escapeHtml(src.label)}</b>
           <p class="muted">${escapeHtml(src.about)}</p>
-          <p class="mono small ${run && !run.ok ? 'warn' : 'muted'}">${escapeHtml(statusText)}</p>
+          <p class="mono small ${run && !run.ok && !disabled.has(src.key) ? 'warn' : 'muted'}">${escapeHtml(statusText)}</p>
         </div>
         ${toggleable ? `<label class="switch" title="Use this source"><input type="checkbox" ${disabled.has(src.key) ? '' : 'checked'} onchange="toggleSource('${src.key}', this.checked)"><span></span></label>` : ''}
       </div>`;

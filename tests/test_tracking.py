@@ -279,6 +279,28 @@ class ApplyingToolsTest(TempDataCase):
         self.assertNotIn("Untouched Intern", body)
 
 
+class RedditSwitchTest(TempDataCase):
+    def run_lead_scan(self):
+        import main
+        hn = mock.Mock(last_error=None)
+        hn.fetch_posts.return_value = []
+        reddit = mock.Mock(is_configured=True, last_error=None)
+        reddit.fetch_posts.return_value = []
+        with mock.patch.object(main, "RedditSource", return_value=reddit), \
+             mock.patch.object(main, "HackerNewsSource", return_value=hn):
+            main.process_leads(use_sample=False)
+        return reddit
+
+    def test_turned_off_reddit_is_not_fetched(self):
+        state_mod.update_state(lambda s: s["settings"].__setitem__("disabled_sources", ["reddit"]))
+        self.run_lead_scan().fetch_posts.assert_not_called()
+        self.assertNotIn("reddit", state_mod.load_state()["runs"])
+
+    def test_reddit_is_fetched_when_on(self):
+        state_mod.update_state(lambda s: s["settings"].__setitem__("disabled_sources", []))
+        self.run_lead_scan().fetch_posts.assert_called_once()
+
+
 class AlertsOverLeadsTest(TempDataCase):
     def test_alert_counts_new_matching_lead(self):
         self.add_lead()

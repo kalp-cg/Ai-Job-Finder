@@ -71,8 +71,11 @@ def process_leads(use_sample: bool = False, limit_per_source: int = 15) -> int:
     reddit_posts = []
     reddit_source = RedditSource()
 
+    from src.opportunities.state import load_state
     if use_sample:
         reddit_posts = get_sample_reddit_posts()
+    elif "reddit" in load_state()["settings"]["disabled_sources"]:
+        logger.info("Reddit is turned off in Settings; skipping it.")
     elif not reddit_source.is_configured:
         logger.info("Reddit API credentials not detected; skipping Reddit.")
         scan_report["sources"]["reddit"] = {"ok": False, "fetched": 0, "error": "not connected. Add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to .env."}
