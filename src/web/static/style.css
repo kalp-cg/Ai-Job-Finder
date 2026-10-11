@@ -202,6 +202,15 @@ kbd {
   padding: 0 5px;
 }
 
+.tag-due {
+  font: 500 10px var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
 .queue-empty { padding: 36px 18px; color: var(--text-3); font-size: 13px; line-height: 1.6; }
 
 .queue-foot {
@@ -362,6 +371,23 @@ kbd {
   transition: border-color 0.15s;
 }
 .draft:focus { border-color: var(--accent-line); }
+
+.draft.notes { min-height: 72px; font-size: 13.5px; }
+.follow-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.follow-row input {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  font: 13px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  outline: none;
+}
+.follow-row input:focus { border-color: var(--accent-line); }
+.sent-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sent-log li { display: flex; gap: 12px; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+.sent-log li .mono { flex-shrink: 0; min-width: 104px; }
 
 .card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--bg); }
 .card-actions .spacer { flex: 1; }

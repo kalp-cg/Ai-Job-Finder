@@ -56,6 +56,7 @@ async function loadItems() {
   const data = await api('/api/items');
   state.items = data.items || [];
   state.totalPostings = data.total_postings || 0;
+  state.queueStats = data.queue_stats || null;
 }
 
 async function loadStatus() {
@@ -100,7 +101,13 @@ function visibleItems(tab = state.tab) {
       i.tab === tab &&
       (state.kind === 'all' || i.kind === state.kind) &&
       (state.showSamples || !i.is_sample))
-    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    .sort((a, b) => isDue(b) - isDue(a) || (b.score ?? -1) - (a.score ?? -1));
+}
+
+/** Waiting on a reply and the follow-up day has arrived. */
+function isDue(i) {
+  const d = parseDate(i.follow_up_at);
+  return d && ['contacted', 'applied'].includes(i.status) && startOfDay(d) <= Date.now() ? 1 : 0;
 }
 
 /* ---------------- Rendering ---------------- */
@@ -170,6 +177,7 @@ function rowHtml(i) {
       <span class="lead-title">${escapeHtml(i.title)}${i.company ? `<span class="row-company"> · ${escapeHtml(i.company)}</span>` : ''}</span>
       <span class="lead-meta">
         ${i.is_sample ? '<span class="tag-sample">SAMPLE</span>' : ''}
+        ${isDue(i) ? '<span class="tag-due">FOLLOW UP</span>' : ''}
         <span>${escapeHtml(i.source_label)}</span>
         ${i.pay_text ? `<span>${escapeHtml(shorten(i.pay_text, 22))}</span>` : ''}
         ${i.contact_email ? '<span class="meta-mail" title="Accepts email applications"><i data-lucide="mail"></i></span>' : ''}
@@ -195,6 +203,7 @@ function renderStage() {
     $('context-label').textContent = item.title;
     $('input').placeholder = 'Ask about this post, or say "make it shorter"';
     wireDraft(item);
+    wireNotes(item);
   } else {
     thread.innerHTML = messageHtml({ role: 'ai', ...briefing() }) + peekHtml() + messagesHtml(state.threads.overview);
     $('context-chip').hidden = true;
@@ -221,9 +230,15 @@ function briefing() {
   } else {
     lines.push(`${hello} Nothing new is waiting.${sent ? ` You've applied to ${sent} so far.` : ''} Run a scan, or ask me for something specific.`);
   }
+  const due = real.filter(isDue);
+  if (due.length) {
+    lines.push(`${due.length === 1 ? 'One application is' : `${due.length} applications are`} due for a follow-up, starting with **${due[0].title}**. They're at the top of Sent.`);
+  }
 
   const notes = [];
   if (state.totalPostings) notes.push(`I'm tracking ${state.totalPostings.toLocaleString()} postings${s?.companies?.boards ? `, including ${s.companies.boards} company careers boards I check directly` : ''}.`);
+  const why = queueStatsNote(state.queueStats);
+  if (why) notes.push(why);
   for (const [key, r] of Object.entries(s?.runs || {})) {
     if (!r.ok && r.error) notes.push(`${labelFor(key)} was skipped: ${r.error}`);
   }
@@ -234,6 +249,29 @@ function briefing() {
 
   const alertButtons = (s?.alerts || []).filter((a) => a.new_count);
   return { text: lines.join('\n\n'), notes, alertButtons };
+}
+
+/** One plain sentence on why most open postings aren't in the queue. */
+function queueStatsNote(q) {
+  if (!q || !q.open) return '';
+  const labels = {
+    location: 'outside your locations',
+    kind: "a kind of role you didn't pick",
+    too_old: 'posted too long ago',
+    low_score: `scored under ${q.min_score}`,
+    over_limit: `fit, but the queue holds ${q.limit}`,
+    disabled_sources: 'from sources you turned off',
+    not_remote: 'not remote',
+    unpaid: 'unpaid',
+    closed: 'past their deadline',
+    duplicate: 'duplicates of another listing',
+  };
+  const parts = Object.keys(labels)
+    .filter((k) => q[k])
+    .sort((a, b) => q[b] - q[a])
+    .map((k) => `${q[k].toLocaleString()} ${labels[k]}`);
+  if (!parts.length) return '';
+  return `Of ${q.open.toLocaleString()} open postings, ${q.shown} made your queue. The rest: ${parts.join(', ')}.`;
 }
 
 function peekHtml() {
@@ -294,6 +332,12 @@ function itemCardHtml(i) {
       </section>` : ''}
       <section id="draft-section">${draftSectionHtml(i)}</section>
       ${i.contact_email ? `<section id="email-section">${emailSectionHtml(i)}</section>` : ''}
+      ${followUpSectionHtml(i)}
+      ${sentLogHtml(i)}
+      <section>
+        <span class="label">Your notes</span>
+        <textarea class="draft notes" id="notes" spellcheck="true" placeholder="Who you spoke to, interview dates, what they said">${escapeHtml(i.notes || '')}</textarea>
+      </section>
       <section class="card-actions">${actionsHtml(i)}<span class="spacer"></span><span class="hint" id="card-hint"></span></section>
     </article>`;
 }
@@ -328,6 +372,42 @@ function emailSectionHtml(i) {
     </div>
     <label class="check-line"><input type="checkbox" id="mail-attach" ${s.resume_file ? 'checked' : 'disabled'}>
       ${s.resume_file ? `Attach my resume (${escapeHtml(s.resume_file)})` : 'No resume file yet. Upload one in Profile to attach it.'}</label>`;
+}
+
+function followUpSectionHtml(i) {
+  if (!['contacted', 'applied'].includes(i.status)) return '';
+  const d = parseDate(i.follow_up_at);
+  let text = 'No reminder set. Pick a date to get one.';
+  if (d) {
+    const days = Math.round((startOfDay(d) - startOfDay(new Date())) / 86400000);
+    text = days < 0 ? `Overdue by ${-days} ${-days === 1 ? 'day' : 'days'}`
+      : days === 0 ? 'Due today'
+      : `Due ${days === 1 ? 'tomorrow' : `in ${days} days`}`;
+  }
+  return `
+    <section>
+      <span class="label">Follow up</span>
+      <div class="follow-row">
+        <input type="date" id="follow-date" value="${d ? localDateValue(d) : ''}" onchange="saveFollowUp(this.value)">
+        <span class="mono small ${isDue(i) ? '' : 'muted'}">${text}</span>
+        ${d ? '<button class="link-btn" onclick="saveFollowUp(\'\')">No reminder</button>' : ''}
+      </div>
+    </section>`;
+}
+
+function sentLogHtml(i) {
+  if (!i.outreach?.length) return '';
+  const rows = i.outreach.map((o) => `
+    <li>
+      <span class="mono small muted">${escapeHtml(formatWhen(o.created_at))}</span>
+      <span>${o.ok ? `Emailed ${escapeHtml(o.to_email)}${o.subject ? ` · ${escapeHtml(shorten(o.subject, 60))}` : ''}${o.attachment ? ' · resume attached' : ''}`
+        : `Not sent to ${escapeHtml(o.to_email)}: ${escapeHtml(o.error || 'unknown error')}`}</span>
+    </li>`).join('');
+  return `
+    <section>
+      <span class="label">Sent from SARTHI</span>
+      <ul class="sent-log">${rows}</ul>
+    </section>`;
 }
 
 function defaultSubject(i) {
@@ -476,6 +556,51 @@ async function saveDraft(item, text) {
   }
 }
 
+function wireNotes(item) {
+  const box = $('notes');
+  if (!box) return;
+  autosize(box);
+  box.addEventListener('input', () => autosize(box));
+  box.addEventListener('blur', () => saveNotes(item, box.value));
+}
+
+async function saveNotes(item, text) {
+  if (text.trim() === (item.notes || '')) return;
+  try {
+    await api(`/api/items/${item.ref}/notes`, { method: 'PUT', body: JSON.stringify({ notes: text }) });
+    item.notes = text.trim();
+    hint('Notes saved');
+  } catch (err) {
+    hint(`Couldn't save notes: ${err.message}`);
+  }
+}
+
+/** value is a YYYY-MM-DD from the date input, or '' to clear. Reminders land at 9am your time. */
+async function saveFollowUp(value) {
+  const item = itemByRef(state.selected);
+  if (!item) return;
+  const when = value ? new Date(`${value}T09:00`).toISOString() : null;
+  try {
+    const res = await api(`/api/items/${item.ref}/follow-up`, { method: 'PUT', body: JSON.stringify({ follow_up_at: when }) });
+    item.follow_up_at = res.follow_up_at;
+    renderQueue();
+    renderStage();
+    hint(when ? 'Reminder set' : 'Reminder removed');
+  } catch (err) {
+    hint(`Couldn't set the reminder: ${err.message}`);
+  }
+}
+
+/** Pull fields the server sets on its own (follow-up date, send log) after a status change or send. */
+async function refreshItem(item) {
+  try {
+    const fresh = await api(`/api/items/${item.ref}`);
+    Object.assign(item, { status: fresh.status, tab: fresh.tab, follow_up_at: fresh.follow_up_at, outreach: fresh.outreach });
+  } catch {
+    // Keep the local copy; the next queue load corrects it.
+  }
+}
+
 async function writeDraft() {
   const item = itemByRef(state.selected);
   if (!item) return;
@@ -550,14 +675,11 @@ async function sendEmail() {
     const res = await api('/api/outreach/send', { method: 'POST', body: JSON.stringify(payload) });
     if (!res.ok) throw new Error(res.error);
     item.draft = payload.body;
-    if (item.status === 'new') {
-      item.status = item.type === 'lead' ? 'contacted' : 'applied';
-      item.tab = 'sent';
-      if (!state.items.includes(item)) state.items.push(item);
-    }
+    await refreshItem(item);
+    if (!state.items.includes(item)) state.items.push(item);
     renderQueue();
     renderStage();
-    pushMessage(item.ref, { role: 'ai', text: `Sent to ${payload.to}${res.attached ? ` with ${res.attached} attached` : ''}. I moved it to Sent.` });
+    pushMessage(item.ref, { role: 'ai', text: `Sent to ${payload.to}${res.attached ? ` with ${res.attached} attached` : ''}. I moved it to Sent and set a follow-up reminder.` });
   } catch (err) {
     btn.disabled = false;
     btn.innerHTML = original;
@@ -570,12 +692,14 @@ async function setStatus(status) {
   const item = itemByRef(state.selected);
   if (!item) return;
   if ($('draft')) await saveDraft(item, $('draft').value);
+  if ($('notes')) await saveNotes(item, $('notes').value);
   try {
     await api(`/api/items/${item.ref}/status`, { method: 'POST', body: JSON.stringify({ status }) });
   } catch (err) {
     hint(err.message);
     return;
   }
+  await refreshItem(item);
   const tabOf = { new: 'new', contacted: 'sent', replied: 'sent', applied: 'sent', interviewing: 'sent', won: 'won', offer: 'won', lost: 'passed', rejected: 'passed', passed: 'passed' };
   const before = visibleItems();
   const idx = before.findIndex((i) => i.ref === item.ref);
@@ -1130,6 +1254,19 @@ function dueIn(iso) {
   if (days < 0) return 'already';
   if (days === 0) return 'today';
   return days === 1 ? 'tomorrow' : `in ${days} days`;
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function localDateValue(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatWhen(iso) {
+  const d = parseDate(iso);
+  return d ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 }
 
 function escapeHtml(str) {

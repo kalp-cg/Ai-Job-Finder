@@ -250,37 +250,51 @@ def _money(monthly_usd: float, inr_per_usd: float, prefer_inr: bool) -> str:
 
 
 def rank(items: List[Dict[str, Any]], q: Query, inr_per_usd: float = 88.0, prefer_inr: bool = False,
-         limit: int = 50, min_score: float = 0.0, trust: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
+         limit: int = 50, min_score: float = 0.0, trust: Optional[Dict[str, float]] = None,
+         stats: Optional[Dict[str, int]] = None) -> List[Dict[str, Any]]:
     """
     Filter, score and de-duplicate items for a query. Returns copies with 'score' and 'reasons'.
     Locations are a hard filter; if that leaves fewer than 3 results they become a soft preference.
+    If `stats` is given, it is filled with how many items each filter removed (see _rank).
     """
     q.trust = trust or SOURCE_PRIOR
-    strict = _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location=True)
+    strict = _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location=True, stats=stats)
     if len(strict) >= 3 or not q.locations:
         return strict
     named = [l for l in q.locations if l not in ("remote", "india")]
     if named and all(l in INDIA_WORDS for l in named):
         wider = Query(**{**q.__dict__, "locations": ["india", "remote"]})
-        widened = _rank(items, wider, inr_per_usd, prefer_inr, limit, min_score, strict_location=True)
+        widened = _rank(items, wider, inr_per_usd, prefer_inr, limit, min_score, strict_location=True, stats=stats)
         if len(widened) > len(strict):
             q.note = f"Few matches in {', '.join(n.title() for n in named)}, so I widened to all of India and remote."
             return widened
     q.note = "Few matches in that location, so I included other places too."
-    return _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location=False)
+    return _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location=False, stats=stats)
 
 
-def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
+def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location, stats=None):
+    """
+    `stats` (cleared on every call, so it describes the call whose results rank() returns) counts
+    items removed by each filter: kind, not_remote, closed, too_old, unpaid, location, duplicate,
+    low_score, and over_limit (good enough, but the list was full).
+    """
+    if stats is None:
+        stats = {}
+    stats.clear()
+    drop = lambda reason: stats.__setitem__(reason, stats.get(reason, 0) + 1)
     now = datetime.now(timezone.utc)
     pool = []
     for it in items:
         if q.kinds and it.get("kind") not in q.kinds:
+            drop("kind")
             continue
         if q.remote_only and not it.get("remote"):
+            drop("not_remote")
             continue
         if it.get("deadline"):
             try:
                 if datetime.fromisoformat(it["deadline"]) < now:
+                    drop("closed")
                     continue
             except ValueError:
                 pass
@@ -288,8 +302,10 @@ def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
         # Company boards and YC list only roles that are still open, so age lowers freshness but never hides them.
         live_board = it.get("source") in ("careers", "yc")
         if age is not None and age > q.max_age_days and it.get("status", "new") == "new" and not live_board:
+            drop("too_old")
             continue
         if q.min_monthly_usd and it.get("pay_monthly_usd") == 0:
+            drop("unpaid")
             continue
         pool.append((it, age))
     if not pool:
@@ -361,6 +377,7 @@ def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
         else:
             loc_fit = 0.1
         if strict_location and loc_fit < 0.5:
+            drop("location")
             continue
         if it.get("remote"):
             reasons.append("Remote")
@@ -398,10 +415,13 @@ def _rank(items, q, inr_per_usd, prefer_inr, limit, min_score, strict_location):
     for r in results:
         key = r.get("dedupe_key") or f"{r.get('source')}:{r.get('id')}"
         if key in seen:
+            drop("duplicate")
             continue
         seen.add(key)
-        if r["score"] >= min_score:
+        if r["score"] < min_score:
+            drop("low_score")
+        elif len(unique) >= limit:
+            drop("over_limit")
+        else:
             unique.append(r)
-        if len(unique) >= limit:
-            break
     return unique

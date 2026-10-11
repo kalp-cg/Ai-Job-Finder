@@ -8,8 +8,8 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from src.core.db import init_db, list_opportunities, mark_unlisted_inactive, upsert_opportunities
-from src.opportunities.normalize import dedupe_key
+from src.core.db import get_top_leads, init_db, list_opportunities, mark_unlisted_inactive, upsert_opportunities
+from src.opportunities.normalize import dedupe_key, detect_kind, extract_skills, is_remote
 from src.opportunities.ranking import parse_query, rank
 from src.opportunities.sources import SOURCES
 from src.opportunities.state import load_state, now_iso, record_run, update_state
@@ -88,14 +88,37 @@ def refresh_sources(manual: bool = False, only: Optional[List[str]] = None) -> O
         _running.release()
 
 
+def lead_postings(min_score: int = 7) -> List[Dict[str, Any]]:
+    """
+    HN/Reddit leads shaped like feed postings, so rank() can score them next to feed postings.
+    Uses the same score floor as the queue; sample leads are left out. 'lead_id' marks them.
+    """
+    out = []
+    for l in get_top_leads(limit=1000, min_score=min_score):
+        if "sample_" in (l.get("url") or ""):
+            continue
+        raw = l.get("raw_content") or ""
+        out.append({
+            "id": l["id"], "lead_id": l["id"], "source": l["source"], "company": "",
+            "kind": detect_kind(l.get("title", ""), raw, default="job" if l["source"] == "hn" else "freelance"),
+            "title": l.get("title") or "", "description": raw, "url": l.get("url"),
+            "skills": extract_skills(l.get("title") or "", " ".join(l.get("tech") or []), raw),
+            "location": "Remote" if is_remote(raw) else "", "remote": is_remote(raw),
+            "pay_text": l.get("budget") or "", "pay_monthly_usd": None, "experience_years": None,
+            "deadline": None, "posted_at": l.get("created_at"), "first_seen_at": l.get("created_at"),
+            "status": l.get("status"), "dedupe_key": f"lead:{l['id']}",
+        })
+    return out
+
+
 def update_alerts() -> None:
-    """Count matches first seen since each alert was last opened."""
+    """Count matches (feed postings and HN/Reddit leads) first seen since each alert was last opened."""
     state = load_state()
     if not state["alerts"]:
         return
     from src.web.agent import load_profile_data  # local import avoids a cycle at module load
     profile = load_profile_data()
-    items = list_opportunities()
+    items = list_opportunities() + lead_postings()
     rate = state["settings"]["inr_per_usd"]
 
     def apply(s: Dict[str, Any]) -> None:

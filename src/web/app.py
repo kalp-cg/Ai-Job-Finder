@@ -21,13 +21,16 @@ from pydantic import BaseModel
 
 from src.core.db import (
     delete_company,
+    follow_up_date,
     get_lead,
     list_companies,
     get_opportunity,
     get_top_leads,
     init_db,
     list_opportunities,
+    outreach_by_ref,
     outreach_for,
+    update_lead,
     update_lead_draft,
     update_lead_status,
     update_opportunity,
@@ -36,7 +39,7 @@ from src.core.llm import get_llm_client
 from src.opportunities import mailer
 from src.opportunities.normalize import detect_kind, find_email, is_remote
 from src.opportunities.ranking import Query, learned_trust, parse_query, profile_query, rank
-from src.opportunities.refresh import is_running, refresh_sources
+from src.opportunities.refresh import is_running, lead_postings, refresh_sources
 from src.opportunities.sources import SOURCES
 from src.opportunities.state import load_state, now_iso, update_state
 from src.web.agent import (
@@ -63,6 +66,8 @@ SOURCE_LABELS = {"hn": "Hacker News", "reddit": "Reddit", "careers": "Company ca
                  **{k: v["label"] for k, v in SOURCES.items()}}
 QUEUE_SIZE = 60
 QUEUE_MIN_SCORE = 5.0
+# Statuses that mean "waiting on them": these get a follow-up reminder, every other status clears it.
+WAITING_STATUSES = {"contacted", "applied"}
 
 
 @app.middleware("http")
@@ -149,6 +154,9 @@ def lead_item(l: Dict[str, Any]) -> Dict[str, Any]:
         "draft": l.get("draft_reply") or "",
         "status": l.get("status"),
         "tab": LEAD_TAB.get(l.get("status"), "new"),
+        "notes": l.get("notes") or "",
+        "follow_up_at": l.get("follow_up_at"),
+        "outreach": [],
         "contact_email": find_email(raw),
         "contact_hint": l.get("contact_method"),
         "is_sample": "sample_" in (l.get("url") or ""),
@@ -183,6 +191,9 @@ def opp_item(o: Dict[str, Any]) -> Dict[str, Any]:
         "draft": o.get("draft") or "",
         "status": o.get("status"),
         "tab": OPP_TAB.get(o.get("status"), "new"),
+        "notes": o.get("notes") or "",
+        "follow_up_at": o.get("follow_up_at"),
+        "outreach": [],
         "contact_email": o.get("contact_email"),
         "contact_hint": None,
         "active": bool(o.get("active", 1)),
@@ -229,6 +240,14 @@ class DraftRequest(BaseModel):
 
 class StatusRequest(BaseModel):
     status: str
+
+
+class NotesRequest(BaseModel):
+    notes: str
+
+
+class FollowUpRequest(BaseModel):
+    follow_up_at: Optional[str] = None  # ISO timestamp, or null to clear
 
 
 class OnboardRequest(BaseModel):
@@ -320,13 +339,22 @@ def list_items():
 
     disabled = set(state["settings"]["disabled_sources"])
     opps = list_opportunities()
-    fresh = [o for o in opps if o["status"] == "new" and o["active"] and o["source"] not in disabled]
+    open_new = [o for o in opps if o["status"] == "new" and o["active"]]
+    fresh = [o for o in open_new if o["source"] not in disabled]
     acted = [o for o in opps if o["status"] != "new"]
     pq = profile_query(profile, rate)
     trust = current_trust(opps)
-    items += [opp_item(o) for o in rank(fresh, pq, rate, prefer_inr, limit=QUEUE_SIZE, min_score=QUEUE_MIN_SCORE, trust=trust)]
+    filtered: Dict[str, int] = {}
+    ranked = rank(fresh, pq, rate, prefer_inr, limit=QUEUE_SIZE, min_score=QUEUE_MIN_SCORE, trust=trust, stats=filtered)
+    items += [opp_item(o) for o in ranked]
     items += [opp_item(o) for o in acted]  # already acted on: keep regardless of filters
-    return {"items": items, "profile_query": pq.chips(), "total_postings": len(opps)}
+    sent = outreach_by_ref()
+    for it in items:
+        it["outreach"] = sent.get(it["ref"], [])
+    # Why the rest of the open postings aren't in the queue, so the briefing can say it plainly.
+    queue_stats = {"open": len(open_new), "shown": len(ranked), "limit": QUEUE_SIZE, "min_score": QUEUE_MIN_SCORE,
+                   "disabled_sources": len(open_new) - len(fresh), **filtered}
+    return {"items": items, "profile_query": pq.chips(), "total_postings": len(opps), "queue_stats": queue_stats}
 
 
 @app.get("/api/items/{ref}")
@@ -336,16 +364,50 @@ def item_detail(ref: str):
     return item
 
 
+def change_status(ref: str, status: str) -> bool:
+    """Set an item's status. Waiting statuses get a follow-up reminder; any other status clears it."""
+    kind, _, raw_id = ref.partition(":")
+    follow_up_at = follow_up_date() if status in WAITING_STATUSES else None
+    if kind == "lead":
+        return update_lead_status(int(raw_id), status) and update_lead(int(raw_id), follow_up_at=follow_up_at)
+    return update_opportunity(int(raw_id), status=status, follow_up_at=follow_up_at)
+
+
 @app.post("/api/items/{ref}/status")
 def set_item_status(ref: str, req: StatusRequest):
-    kind, _, raw_id = ref.partition(":")
     try:
-        ok = update_lead_status(int(raw_id), req.status) if kind == "lead" else update_opportunity(int(raw_id), status=req.status)
+        ok = change_status(ref, req.status)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not ok:
         raise HTTPException(status_code=404, detail="Item not found")
     return {"status": "success"}
+
+
+@app.put("/api/items/{ref}/notes")
+def save_item_notes(ref: str, req: NotesRequest):
+    kind, _, raw_id = ref.partition(":")
+    notes = req.notes.strip()
+    ok = update_lead(int(raw_id), notes=notes) if kind == "lead" else update_opportunity(int(raw_id), notes=notes)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"status": "success"}
+
+
+@app.put("/api/items/{ref}/follow-up")
+def save_item_follow_up(ref: str, req: FollowUpRequest):
+    when = None
+    if req.follow_up_at:
+        try:
+            parsed = datetime.fromisoformat(req.follow_up_at.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Follow-up date must be an ISO date")
+        when = (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).astimezone(timezone.utc).isoformat()
+    kind, _, raw_id = ref.partition(":")
+    ok = update_lead(int(raw_id), follow_up_at=when) if kind == "lead" else update_opportunity(int(raw_id), follow_up_at=when)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"follow_up_at": when}
 
 
 @app.put("/api/items/{ref}/draft")
@@ -380,9 +442,18 @@ def search_items(text: str, limit: int = 8) -> Dict[str, Any]:
     q = parse_query(text, profile, rate)
     disabled = set(state["settings"]["disabled_sources"])
     opps = list_opportunities()
-    results = rank([o for o in opps if o["active"] and o["source"] not in disabled], q, rate, _prefer_inr(profile), limit=limit, min_score=5.0,
-                   trust=current_trust(opps))
-    return {"query": q, "results": [opp_item(r) for r in results]}
+    pool = [o for o in opps if o["active"] and o["source"] not in disabled] + lead_postings()
+    results = rank(pool, q, rate, _prefer_inr(profile), limit=limit, min_score=5.0, trust=current_trust(opps))
+    return {"query": q, "results": [search_result_item(r) for r in results]}
+
+
+def search_result_item(r: Dict[str, Any]) -> Dict[str, Any]:
+    """A ranked search hit in the UI's item shape. Leads keep their own write-up but take the search score."""
+    if not r.get("lead_id"):
+        return opp_item(r)
+    item = lead_item(get_lead(r["lead_id"]))
+    item["score"] = r["score"]
+    return item
 
 
 @app.post("/api/chat")
@@ -614,10 +685,10 @@ def send_application(req: SendRequest):
         kind, _, raw_id = req.ref.partition(":")
         if kind == "lead":
             update_lead_draft(int(raw_id), req.body)
-            if item["status"] == "new":
-                update_lead_status(int(raw_id), "contacted")
         else:
-            update_opportunity(int(raw_id), draft=req.body, **({"status": "applied"} if item["status"] == "new" else {}))
+            update_opportunity(int(raw_id), draft=req.body)
+        if item["status"] == "new":
+            change_status(req.ref, "contacted" if kind == "lead" else "applied")
     return result
 
 

@@ -7,7 +7,7 @@ Enforces deduplication: never process the same URL or contact the same person tw
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -152,8 +152,35 @@ def init_db(db_path: Optional[Path] = None) -> None:
         )
     """)
 
+    # follow_up_at: when to nudge about something you applied to / contacted (added after launch).
+    # Items already waiting on a reply get a reminder 5 days after they were last updated.
+    for table, waiting in (("leads", "contacted"), ("opportunities", "applied")):
+        cols = {r["name"] for r in cursor.execute(f"PRAGMA table_info({table})")}
+        if "follow_up_at" not in cols:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN follow_up_at TEXT")
+            rows = cursor.execute(f"SELECT id, updated_at FROM {table} WHERE status = ?", (waiting,)).fetchall()
+            for row in rows:
+                cursor.execute(f"UPDATE {table} SET follow_up_at = ? WHERE id = ?",
+                               (follow_up_date(row["updated_at"]), row["id"]))
+
     conn.commit()
     conn.close()
+
+
+FOLLOW_UP_DAYS = 5
+
+
+def follow_up_date(from_iso: Optional[str] = None) -> str:
+    """FOLLOW_UP_DAYS after from_iso (or now), as a UTC ISO timestamp."""
+    start = datetime.now(timezone.utc)
+    if from_iso:
+        try:
+            start = datetime.fromisoformat(from_iso.replace(" ", "T"))
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    return (start + timedelta(days=FOLLOW_UP_DAYS)).isoformat()
 
 
 def is_lead_seen(url: str, author: Optional[str] = None, db_path: Optional[Path] = None) -> bool:
@@ -302,6 +329,19 @@ def update_lead_draft(lead_id: int, draft: str, db_path: Optional[Path] = None) 
     conn.commit()
     conn.close()
     return updated
+
+
+def update_lead(lead_id: int, db_path: Optional[Path] = None, **fields: Any) -> bool:
+    """Update notes / follow_up_at on a lead."""
+    allowed = {k: v for k, v in fields.items() if k in {"notes", "follow_up_at"}}
+    if not allowed:
+        return False
+    allowed["updated_at"] = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection(db_path)
+    cur = conn.execute(f"UPDATE leads SET {', '.join(f'{k} = ?' for k in allowed)} WHERE id = ?", (*allowed.values(), lead_id))
+    conn.commit()
+    conn.close()
+    return cur.rowcount > 0
 
 
 def get_lead(lead_id: int, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
@@ -528,8 +568,8 @@ def get_opportunity(opp_id: int, db_path: Optional[Path] = None) -> Optional[Dic
 
 
 def update_opportunity(opp_id: int, db_path: Optional[Path] = None, **fields: Any) -> bool:
-    """Update status / draft / notes on an opportunity."""
-    allowed = {k: v for k, v in fields.items() if k in {"status", "draft", "notes"}}
+    """Update status / draft / notes / follow_up_at on an opportunity."""
+    allowed = {k: v for k, v in fields.items() if k in {"status", "draft", "notes", "follow_up_at"}}
     if "status" in allowed and allowed["status"] not in OPPORTUNITY_STATUSES:
         raise ValueError(f"Invalid status '{allowed['status']}'. Must be one of {OPPORTUNITY_STATUSES}")
     if not allowed:
@@ -568,6 +608,17 @@ def outreach_for(item_ref: str, db_path: Optional[Path] = None) -> List[Dict[str
     rows = conn.execute("SELECT * FROM outreach WHERE item_ref = ? ORDER BY created_at DESC", (item_ref,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def outreach_by_ref(db_path: Optional[Path] = None) -> Dict[str, List[Dict[str, Any]]]:
+    """Every email attempt, grouped by item ref, newest first."""
+    conn = get_db_connection(db_path)
+    rows = conn.execute("SELECT * FROM outreach ORDER BY created_at DESC").fetchall()
+    conn.close()
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        grouped.setdefault(r["item_ref"], []).append(dict(r))
+    return grouped
 
 
 # ---------------------------------------------------------------- Companies (careers boards)
