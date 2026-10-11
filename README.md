@@ -1,189 +1,198 @@
-# SARTHI — AI Career & Opportunity Navigator
+# SARTHI
 
-An inbox for paid work. SARTHI pulls internships, jobs and freelance posts from public feeds, ranks them against your profile, drafts your application, and sends it by email in one click when the post accepts email.
+**An inbox for paid work.** SARTHI finds internships, jobs and freelance gigs that fit you, explains why each one fits, helps you write the application, and reminds you to follow up. You stay in control: nothing is ever sent without your click.
 
-> [!IMPORTANT]
-> **Safety Boundary:** SARTHI never posts, comments, DMs or applies on its own. An email goes out only when you click **Send email**, after a 5-second undo window, with a daily cap (default 20) and no repeat sends to the same address for the same post. Auto-scan only reads feeds; it never sends anything.
+![SARTHI inbox: your queue on the left, SARTHI's briefing on the right](docs/images/inbox.png)
 
 ---
 
-## 1. Architecture Overview
+## Why it exists
 
-The system consists of two discovery modules sharing a common core:
+Looking for an internship or your first job usually means:
 
-```
-job-assistant/
-├── .env.example            # Environment templates (GEMINI_API_KEY, REDDIT keys)
-├── .gitignore              # Ignores credentials, SQLite databases, and caches
-├── requirements.txt        # Dependencies (google-genai, pydantic, praw, rich, etc.)
-├── config/
-│   ├── profile.yaml        # Skills, rates, city, and minimum stipend
-│   ├── queries.yaml        # Internship keywords and boards
-│   └── leads.yaml          # Subreddits, HN queries, keywords, and blocked terms
-├── data/
-│   ├── resume.md           # Your experience summary
-│   ├── projects.md         # Highlighted projects with links (3-4 lines each)
-│   ├── portfolio.md        # Freelance case studies and proof-of-work URLs
-│   └── assistant.db        # SQLite database: leads, jobs, and status tracking
-├── src/
-│   ├── core/
-│   │   ├── llm.py          # Gemini 2.5 wrapper with Pydantic JSON schemas
-│   │   ├── db.py           # SQLite migrations, deduplication, and status updater
-│   │   └── notifier.py     # Terminal Rich tables and Markdown daily digest
-│   ├── jobs/
-│   │   ├── collector.py    # Public job page collector (Lever, Greenhouse, Ashby)
-│   │   ├── extractor.py    # Gemini job role extraction
-│   │   ├── matcher.py      # Profile & stipend scoring (0-10)
-│   │   └── drafter.py      # Application intro note generator
-│   └── leads/
-│       ├── reddit_source.py # PRAW official read-only Reddit scraper (<48h)
-│       ├── hn_source.py     # Hacker News official Algolia API (<48h)
-│       ├── extractor.py    # Gemini post classifier & JSON extractor (pydantic)
-│       ├── scorer.py       # Fit evaluation (0-10, keeps >= 7)
-│       └── drafter.py      # Tailored reply drafts (<100 words, 4 parts)
-└── main.py                 # CLI controller: run, leads, jobs, digest, track
+- **Ten tabs, every day.** Openings are spread across job boards, company careers pages, Hacker News threads and your inbox.
+- **Generic applications.** Copy-pasting the same note to every company rarely gets a reply.
+- **Forgotten follow-ups.** You apply, wait, and never write back. That's where most chances are lost.
+
+SARTHI puts all of it in one queue, ranked for *you*, with your application and follow-up right next to each post.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Find<br/>job feeds, company careers boards,<br/>your job-alert emails, HN] --> B[Rank<br/>skills, pay, location,<br/>freshness, experience]
+    B --> C[Your queue<br/>why each post fits]
+    C --> D[Apply<br/>draft from your resume,<br/>you edit, you send]
+    D --> E[Follow up<br/>reminder after 5 days,<br/>draft the nudge]
+    E --> F[Learn<br/>sources that reply<br/>rank higher]
+    F --> B
 ```
 
----
+1. **Find.** SARTHI reads public job feeds, checks companies' own careers boards directly, and reads the job-alert emails LinkedIn, Internshala and Naukri already send you.
+2. **Rank.** Every posting gets a 0 to 10 score against your profile. Only good fits reach your queue, and SARTHI tells you in one line why the rest didn't.
+3. **Apply.** Open a post, read *why it fits* and *which skills you're missing*, then click **Write my application**. SARTHI drafts it from your real resume; you edit it and send it yourself.
+4. **Follow up.** Five days after you apply, the post is flagged *Follow up* and moves to the top of Sent. One click drafts a short, polite nudge.
+5. **Learn.** Sources that lead to replies and interviews rank higher over time.
 
-## 2. Core Modules
+![A post: why it fits, missing skills, your application, follow-up date and notes](docs/images/post-card.png)
 
-### Module A: Opportunity Feeds (`src/opportunities/`)
-Public APIs and published datasets only. Each source's terms (credit the source, link to the original, modest request rates) are respected.
+## What you can do
 
-| Source | What it gives | Min gap between calls |
-| :--- | :--- | :--- |
-| SimplifyJobs (GitHub dataset) | ~4-5k active tech internships, mostly US | 1 h |
-| The Muse API | Internships and entry-level roles, incl. India and remote | 1 h |
-| Unstop public API | Indian internships with stipend and deadline | 1 h |
-| Remotive API | Remote dev jobs (max ~4 calls/day by their terms) | 6 h |
-| Remote OK API | Remote jobs with salary ranges | 2 h |
-| Jobicy API | Remote engineering jobs | 2 h |
-| Himalayas API | Remote jobs with location limits and salaries | 2 h |
+| | |
+|---|---|
+| **Find work** | Ranked queue of internships, jobs and freelance posts · ask in plain words ("React internship in Pune, ₹15k stipend") · save any search as an alert · auto-scan every 15 min to 12 h |
+| **Watch companies** | Add any company to your watchlist and SARTHI checks its own careers board on every scan · **find software companies in any city** (Bengaluru, Pune, GIFT City...) and watch them in one click · paste a LinkedIn hiring post in chat to watch that company |
+| **Judge a post** | Score out of 10 with plain reasons · skills the post wants that aren't in your profile · closing-soon posts pinned to the top |
+| **Apply** | Application drafted from your resume (never invents experience) · edit freely · one-click email with your resume attached, after a 5-second undo window |
+| **Get the job** | Follow-up reminders and drafts · interview prep: likely questions for *this* role, with answers pointing to your real projects, and honest gaps |
+| **Keep track** | Notes on every post · status timeline (applied, interviewing, offer) · your reply rate in the briefing · export your applications to CSV |
 
-Unstop is off by default (low reply rates); switch it on in Settings if you want it.
+![Companies page: find software companies in a city and add them to your watchlist](docs/images/companies.png)
 
-**Not included on purpose:** LinkedIn, Internshala, Naukri, Wellfound and Indeed. Their terms or robots.txt forbid automated access.
-When you see a role on LinkedIn, paste the post (or "track <company>") into chat: SARTHI finds that company's own careers board and watches it.
+## Where the jobs come from
 
-### Company careers engine (`src/opportunities/companies.py`)
-Most roles a company announces on LinkedIn are also on its own careers board, and most boards run on a hiring system with a public JSON feed. SARTHI reads those directly.
+SARTHI only uses sources that allow automated access, and says so when one fails.
 
-1. **Find companies:** `config/companies.yaml` (Indian tech companies, editable), YC companies that are hiring in India or fully remote (open YC dataset), companies in this month's HN "Who is hiring?" thread that mention interns/India/remote, and any company you add in chat or Settings.
-2. **Find each company's board:** read the website (robots.txt respected) for links to Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee or Workday, or schema.org JobPosting data, or a plain careers page; otherwise probe those systems' public APIs with likely slugs and accept only verified names (or exact name matches on systems that don't return one).
-3. **Poll with an adaptive queue:** each board has its own next-check time. Boards that post new matches are checked more often (down to 6 h), quiet ones back off (up to 7 days). Requests to any single host are spaced at least 1 s apart. Roles that disappear from a board are marked closed.
-4. **Keep only what fits:** internships (and entry-level roles if you want jobs); senior roles are never stored.
+| Source | What it brings |
+|---|---|
+| **Company careers boards** | Roles straight from each company's hiring system (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Workday, YC, plain careers pages). Busy boards are checked more often, quiet ones less. |
+| **Your job-alert emails** | Jobs from the LinkedIn, Internshala and Naukri alerts in your Gmail, read-only. SARTHI never opens those sites. |
+| **Public job feeds** | SimplifyJobs, The Muse, Unstop, Remotive, Remote OK, Jobicy, Himalayas |
+| **Freelance threads** | Hacker News "Who is hiring?" and "Seeking freelancer?" (and Reddit, if you have approved API keys) |
+| **City company finder** | Software companies from OpenStreetMap, Wikidata and Y Combinator's public list |
 
-Limits: careers sites that are JavaScript-only with no public feed (e.g. Swiggy, Zomato, Zerodha) can't be read, and Keka/Darwinbox portals disallow automated access in robots.txt.
+**Never used:** scraping LinkedIn, Internshala, Naukri, Wellfound, Indeed or Google Maps. Their terms forbid it, and it can get your account banned.
 
-### Ranking that learns
-`score = 10 × relevance^0.7 × (0.55 + 0.45 × fit) × (0.7 + 0.3 × source trust)`
-- **relevance:** half "is this your kind of role" (title), half skill/keyword overlap (BM25). A fresh, well-paid role that isn't for you can't score well.
-- **fit:** pay vs. what you asked, location, freshness, experience.
-- **source trust:** starts from a prior (company careers 1.0, YC 0.95, aggregators 0.7, Unstop 0.45) and moves with your own outcomes: replies and interviews from a source raise it, silence lowers it.
+## Promises
 
-- **`normalize.py`:** one shape for every posting. Parses skills (with synonyms), pay in any currency/period to monthly USD, experience asked, remote, and an application email only when the text around it is about applying (HR-accommodation and privacy addresses are ignored).
-- **`ranking.py`:** no LLM calls, so thousands of postings rank in ~50 ms. Score = 45% relevance (skill coverage + BM25), 15% pay fit, 15% location fit, 15% freshness (10-day half-life), 10% experience fit. Hard filters for kind, location, closed/expired, and unpaid when you ask for pay. Cross-source duplicates collapse.
-- **`refresh.py`:** fetches due sources, stores them, marks postings that disappear as closed, updates alerts.
-- **`mailer.py`:** sends one email via your SMTP account (Gmail App Password), with your resume attached.
-
-### Module B: Freelance Lead Finder (`src/leads/`)
-- **Reddit Source:** Uses official **PRAW** in read-only mode to scan high-intent subreddits (`r/forhire`, `r/webdev`, `r/startups`, `r/SideProject`). Filters out `[For Hire]` and spam.
-- **Hacker News Source:** Reads this month's "Ask HN: Who is hiring?" and "Freelancer? Seeking freelancer?" threads through the official **Algolia API**, keeps remote posts, and ranks them by overlap with your skills before any LLM call.
-- **Extractor:** Classifies whether a post is a paid work request and extracts `need`, `budget`, `timeline`, `tech`, `contact_method`, and `url`.
-- **Scorer:** Scores candidates (0 to 10) against your skills, portfolio, budget realism, and clarity. Drops any lead below 7.
-- **Drafter:** Crafts a reply strictly under 100 words following the 4-part conversion framework:
-  1. Acknowledge and understand their specific problem.
-  2. One actionable suggestion or technical question.
-  3. One relevant proof-of-work link from `data/portfolio.md`.
-  4. Clear, friction-free next step ("Happy to share a quick plan...").
-
-### Shared Core (`src/core/`)
-- **`llm.py`:** Wrapper around the official Google GenAI SDK (`google-genai`). Enforces structured output parsing with fallback resilience.
-- **`db.py`:** SQLite database storing leads and opportunities. Blocks duplicate URLs and duplicate authors.
-- **`notifier.py`:** Formats clean Markdown digests in `data/digest_YYYY-MM-DD.md` and displays terminal tables.
+- **Nothing is sent without your click.** Every email waits 5 seconds so you can undo, there's a daily cap (default 20), and the same address is never emailed twice for the same post.
+- **Nothing is invented.** Drafts and interview prep only use what's in your resume. Unknown pay says "pay not stated". A source that fails is shown as failed, not hidden.
+- **Your data stays on your machine.** Everything is stored in a local SQLite file. Only the sources above, the AI drafting calls (Gemini) and the emails you send go over the network.
 
 ---
 
-## 3. Quickstart & Setup
+## Quick start
 
-### 1. Install dependencies
+You need **Python 3.10+**. It takes about 10 minutes.
+
+**1. Install**
+
 ```bash
+git clone https://github.com/kalp-cg/Ai-Job-Finder.git
+cd Ai-Job-Finder
 pip install -r requirements.txt
-```
-
-### 2. Configure credentials
-Copy the environment template:
-```bash
 cp .env.example .env
 ```
-Edit `.env` and fill in:
-- `GEMINI_API_KEY`: Get a free key at [Google AI Studio](https://aistudio.google.com/app/apikey).
-- `REDDIT_CLIENT_ID` & `REDDIT_CLIENT_SECRET`: Create a free script app at [Reddit App Preferences](https://www.reddit.com/prefs/apps).
 
-*(Note: Without a Gemini key, scoring and drafts fall back to simple rules. Sample posts are only used with `--sample`; live scans never mix them in, and the web app labels and hides any sample posts already in the database.)*
+**2. Add your keys to `.env`.** All of them are optional; SARTHI tells you what each missing one turns off.
+
+| Key | What it unlocks | Where to get it |
+|---|---|---|
+| `GEMINI_API_KEY` | Application drafts, interview prep, follow-ups, lead scoring (otherwise plain templates) | Free at [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| `SMTP_USER`, `SMTP_PASSWORD` | One-click email applications **and** reading your LinkedIn/Internshala/Naukri alert emails | A Gmail [App Password](https://myaccount.google.com/apppasswords) (needs 2-step verification), not your normal password |
+| `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Freelance posts from Reddit | Reddit now approves API access case by case; skip it and turn Reddit off in Settings |
+
+**3. Run**
+
+```bash
+python main.py web
+```
+
+Open **http://localhost:8000**.
+
+**4. First five minutes in the app**
+
+1. **Profile** (top right): drop in your resume PDF. SARTHI reads your skills and links from it. Set what you're looking for: internship or job, cities, expected pay.
+2. Click **Scan**. The first scan takes 2 to 3 minutes.
+3. **Companies**: search your city and watch the companies you'd like to work at.
+4. On LinkedIn, turn on **job alerts** (email, daily) for the roles you want. SARTHI picks them up from your inbox on every scan.
+5. **Settings**: turn on auto-scan.
+
+## A 15-minute daily routine
+
+1. Open SARTHI. With auto-scan on, the queue is already fresh.
+2. Check **Sent** first: anything tagged *Follow up* gets a short nudge.
+3. Go through **New** with `j` / `k`. Pass on what doesn't fit; open what does.
+4. For each good one: **Write my application**, edit it, then **Send email** or **Copy & open** their form.
+5. When someone replies, move the post to *Interviewing* and click **Prep for interview**.
 
 ---
 
-## 4. Interactive Interfaces & Usage Commands
+## Your files
 
-### Launch the Web App
-Starts the local web app: a queue of posts by status (New, Sent, Won, Passed), each post with why it fits and an editable reply, and a conversation with SARTHI about the open post. Shortcuts: `j`/`k` move through the queue, `/` focuses the input, `Esc` returns to the overview.
-```bash
-python3 main.py web
+| File | What it is |
+|---|---|
+| `config/profile.yaml` | Your name, links, skills and search preferences. Edited from the Profile page. |
+| `data/resume.md` | The text SARTHI writes from. Created when you upload your resume. |
+| `data/portfolio.md` | Short case studies of your real projects, used in freelance replies. |
+| `config/companies.yaml` | A starter list of Indian tech companies to watch. Add your own. |
+| `data/assistant.db` | Everything SARTHI has found and everything you've done (local, git-ignored). |
+
+> [!WARNING]
+> If your fork is public, keep your resume, profile and portfolio out of git, or anyone can read them.
+
+## For developers
+
 ```
-Open your browser at **http://localhost:8000**.
-
-### Launch Interactive Terminal Chat (Claude Mode)
-Talk directly to your Job Assistant in the terminal:
-```bash
-python3 main.py chat
-```
-
----
-
-### Command Line Tools
-
-### Run Full Pipeline
-Runs lead discovery, internship matching, deduplication, and prints the daily digest:
-```bash
-python3 main.py run
-```
-Or run with sample test data:
-```bash
-python3 main.py run --sample
-```
-
-### Run Freelance Leads Only
-```bash
-python3 main.py leads
-```
-
-### View Daily Digest
-Display top leads and review the draft replies:
-```bash
-python3 main.py digest --limit 10
+main.py                  CLI entry point: web, chat, run, leads, jobs, digest, track
+src/
+  core/                  SQLite storage (db.py), Gemini wrapper (llm.py), terminal digest
+  opportunities/
+    sources.py           Public job feeds
+    companies.py         Careers-board discovery and adaptive polling
+    discover.py          City company finder (OpenStreetMap, Wikidata, YC)
+    email_alerts.py      Job-alert emails over IMAP, read-only
+    ranking.py           Scoring and filtering, no AI calls (thousands of posts in ~50 ms)
+    refresh.py           Runs due sources and updates alerts
+    mailer.py            Sends one email on your click
+  leads/                 Hacker News / Reddit freelance leads: extract, score, draft
+  web/
+    app.py               FastAPI routes
+    agent.py             Drafts, follow-ups, interview prep, resume parsing
+    static/              The web app (plain HTML, CSS and JavaScript)
+tests/                   unittest suite, runs against a throwaway database
 ```
 
-### Track Outreach Status
-View high-level funnel stats:
+**Run the tests** (no network, never touches your data):
+
 ```bash
-python3 main.py track
+python -m unittest discover -s tests
 ```
 
-Update status when you contact someone:
-```bash
-python3 main.py track --lead-id 1 --status contacted --notes "Sent DM with portfolio link"
-python3 main.py track --lead-id 1 --status replied
-python3 main.py track --lead-id 1 --status won
+<details>
+<summary><b>How a posting is scored</b></summary>
+
+```
+score = 10 × relevance^0.7 × (0.55 + 0.45 × fit) × (0.7 + 0.3 × source trust)
 ```
 
----
+- **Relevance:** half "is this your kind of role" (from the title), half skill and keyword overlap (BM25). A fresh, well-paid role that isn't for you can't score well.
+- **Fit:** pay against what you asked for, location, freshness (10-day half-life) and experience asked.
+- **Source trust:** starts from a prior (company careers 1.0, YC 0.95, alert emails 0.9, aggregators 0.7) and moves with your own outcomes.
+- **Hard filters:** kind of role, location, closed or expired, and unpaid when you asked for pay. Cross-source duplicates collapse into one.
 
-## 5. Daily Routine (15 Minutes)
+</details>
 
-1. **Open SARTHI** (`python3 main.py web`). With auto-scan on (Settings), the queue is already fresh.
-2. **Ask for what you want**, e.g. "React internship, 1 year experience, ₹15k stipend". Save it as an alert to hear about new matches.
-3. **Open a post**, read why it fits, click **Write my application**, edit it.
-4. **Send email** when the post takes email; otherwise **Copy & open** and paste into their form.
-5. **Mark applied**, then move it along (Interviewing, Offer, Rejected) as replies come in.
+<details>
+<summary><b>Command-line tools</b></summary>
+
+```bash
+python main.py chat                      # talk to SARTHI in the terminal
+python main.py run                       # scan everything and print the digest
+python main.py leads                     # freelance leads only
+python main.py digest --limit 10         # top leads with their drafts
+python main.py track                     # your funnel
+python main.py track --lead-id 1 --status contacted --notes "Sent portfolio link"
+```
+
+</details>
+
+## FAQ
+
+**Why doesn't SARTHI just scrape LinkedIn?** LinkedIn forbids it and bans accounts that automate it. Turning on LinkedIn job alerts gets you the same jobs by email, and SARTHI reads those.
+
+**Why not Google Maps for finding companies?** Its terms forbid scraping and its API needs a billing account. OpenStreetMap and Wikidata are free and open. Coverage is good in big cities and thinner in small ones.
+
+**Only a few posts reach my queue. Is it broken?** The briefing says exactly why the rest were filtered out (location, role type, age, score). Most often it's location: many feeds list US-only roles.
+
+**Does it work without Gemini?** Yes. Ranking needs no AI at all. Drafts, follow-ups and interview prep fall back to plain templates and say so.

@@ -290,4 +290,5 @@ def format_pay(pay: Dict[str, Any]) -> str:
 def dedupe_key(company: str, title: str) -> str:
     norm = lambda s: re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
     title_n = re.sub(r"\b(20\d\d|summer|fall|winter|spring|remote|hybrid|i|ii|iii)\b", "", norm(title))
-    return f"{norm(company)}|{re.sub(r'\s+', ' ', title_n).strip()}"
+    title_n = re.sub(r"\s+", " ", title_n).strip()  # outside the f-string: backslashes there need Python 3.12+
+    return f"{norm(company)}|{title_n}"
