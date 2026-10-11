@@ -152,6 +152,17 @@ def init_db(db_path: Optional[Path] = None) -> None:
         )
     """)
 
+    # Every status change made in the web app, so each item can show its timeline.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS status_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_ref TEXT NOT NULL,              -- 'opp:12' or 'lead:7'
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_log_ref ON status_log(item_ref)")
+
     # follow_up_at: when to nudge about something you applied to / contacted (added after launch).
     # Items already waiting on a reply get a reminder 5 days after they were last updated.
     for table, waiting in (("leads", "contacted"), ("opportunities", "applied")):
@@ -606,6 +617,22 @@ def outreach_sent_since(since_iso: str, db_path: Optional[Path] = None) -> int:
 def outreach_for(item_ref: str, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
     conn = get_db_connection(db_path)
     rows = conn.execute("SELECT * FROM outreach WHERE item_ref = ? ORDER BY created_at DESC", (item_ref,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def log_status(item_ref: str, status: str, db_path: Optional[Path] = None) -> None:
+    conn = get_db_connection(db_path)
+    conn.execute("INSERT INTO status_log (item_ref, status, created_at) VALUES (?, ?, ?)",
+                 (item_ref, status, datetime.now(timezone.utc).isoformat()))
+    conn.commit()
+    conn.close()
+
+
+def status_history(item_ref: str, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Status changes for one item, oldest first."""
+    conn = get_db_connection(db_path)
+    rows = conn.execute("SELECT status, created_at FROM status_log WHERE item_ref = ? ORDER BY id", (item_ref,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

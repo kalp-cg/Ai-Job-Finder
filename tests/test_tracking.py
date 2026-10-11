@@ -221,6 +221,64 @@ class WatchingTest(TempDataCase):
         self.assertEqual(web.parse_track_request("track Node.js Inc"), ("Node.js Inc", None))
 
 
+class ApplyingToolsTest(TempDataCase):
+    def setUp(self):
+        super().setUp()
+        # Template paths only: never call Gemini from tests.
+        self.no_llm = mock.patch("src.web.agent.get_llm_client", return_value=mock.Mock(is_available=False))
+        self.no_llm.start()
+
+    def tearDown(self):
+        self.no_llm.stop()
+        super().tearDown()
+
+    def test_timeline_records_each_status_change(self):
+        ref = f"opp:{self.add_opp()}"
+        for status in ("applied", "interviewing", "offer"):
+            self.client.post(f"/api/items/{ref}/status", json={"status": status})
+        self.assertEqual([t["status"] for t in self.client.get(f"/api/items/{ref}").json()["timeline"]],
+                         ["applied", "interviewing", "offer"])
+        self.client.post(f"/api/items/{ref}/status", json={"status": "bogus"})
+        self.assertEqual(len(self.client.get(f"/api/items/{ref}").json()["timeline"]), 3)
+
+    def test_skill_gap_lists_known_skills_missing_from_profile(self):
+        ref = f"opp:{self.add_opp(skills=['Python', 'Kubernetes', 'Data Analysis Tools', 'Go'])}"
+        with mock.patch.object(web, "load_profile_data", return_value={"skills": ["Python"]}):
+            gap = self.client.get(f"/api/items/{ref}").json()["missing_skills"]
+        self.assertIn("Kubernetes", gap)
+        self.assertNotIn("Python", gap)
+        self.assertNotIn("Data Analysis Tools", gap)  # not a known skill, so not claimed as a gap
+
+    def test_follow_up_draft_mentions_role_and_send_date(self):
+        ref = f"opp:{self.add_opp(title='Backend Intern')}"
+        db.record_outreach(ref, "jobs@example.com", "Application", "Hi", None, ok=True)
+        conn = db.get_db_connection()
+        conn.execute("UPDATE outreach SET created_at = '2026-10-02T10:00:00+00:00'")
+        conn.commit()
+        conn.close()
+        text = self.client.post(f"/api/items/{ref}/follow-up-draft").json()["text"]
+        self.assertIn("Backend Intern", text)
+        self.assertIn("Oct 2", text)
+
+    def test_interview_prep_without_gemini_says_so(self):
+        ref = f"opp:{self.add_opp()}"
+        text = self.client.post(f"/api/items/{ref}/interview-prep").json()["text"]
+        self.assertTrue(text.startswith("Gemini isn't configured"))
+        self.assertIn("1. ", text)
+
+    def test_export_has_acted_items_only_and_defuses_formulas(self):
+        sent = self.add_opp("s", "=HYPERLINK(\"http://evil\")")
+        self.add_opp("n", "Untouched Intern")
+        self.client.post(f"/api/items/opp:{sent}/status", json={"status": "applied"})
+        self.client.put(f"/api/items/opp:{sent}/notes", json={"notes": "-call them Monday"})
+        res = self.client.get("/api/export.csv")
+        self.assertEqual(res.headers["content-type"].split(";")[0], "text/csv")
+        body = res.text
+        self.assertIn("'=HYPERLINK", body)
+        self.assertIn("'-call them Monday", body)
+        self.assertNotIn("Untouched Intern", body)
+
+
 class AlertsOverLeadsTest(TempDataCase):
     def test_alert_counts_new_matching_lead(self):
         self.add_lead()

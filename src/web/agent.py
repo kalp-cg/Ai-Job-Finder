@@ -149,6 +149,81 @@ Never invent projects, numbers, or links. No emojis. Return only the email body.
     )
 
 
+def draft_follow_up(item: Dict[str, Any], sent_at: Optional[str] = None) -> str:
+    """Short, polite follow-up on an application or reply that got no answer. Gemini when available, else a template."""
+    profile = load_profile_data()
+    name = profile.get("name") or ""
+    role = item.get("title") or "the role"
+    where = f" at {item['company']}" if item.get("company") else ""
+    when = ""
+    if sent_at:
+        try:
+            when = f" on {datetime.fromisoformat(sent_at.replace(' ', 'T')).strftime('%b %d').replace(' 0', ' ')}"
+        except ValueError:
+            pass
+
+    llm = get_llm_client()
+    if llm.is_available:
+        prompt = f"""Write a short follow-up to an application that has had no reply.
+
+ROLE: {role}{where}
+I APPLIED{when or ''} WITH:
+\"\"\"
+{(item.get('draft') or '')[:1500]}
+\"\"\"
+CANDIDATE: {name}, {profile.get('title', '')}, {profile.get('github', '')}
+
+Rules: under 70 words; polite and direct; restate interest in one sentence; add one specific, true reason to talk
+taken from the original note (never invent anything new); ask if there's an update or a next step; sign with the name.
+No emojis, no guilt-tripping, no "just checking in". Return only the message body."""
+        text = llm.generate_text(prompt, system_instruction="You write brief, respectful follow-up emails.", temperature=0.4)
+        if text:
+            return text.strip()
+
+    return (
+        f"Hi {item.get('company') or 'there'} team,\n\n"
+        f"I applied for the {role} role{when} and wanted to follow up. I'm still very interested, "
+        f"and happy to share more of my work or do a short call or task if that helps.\n\n"
+        f"Is there an update on next steps?\n\nThanks,\n{name}"
+    ).strip()
+
+
+def interview_prep(item: Dict[str, Any]) -> str:
+    """Likely interview questions for this role with answer pointers from the resume. Gemini when available."""
+    profile = load_profile_data()
+    llm = get_llm_client()
+    if llm.is_available:
+        prompt = f"""Prepare {profile.get('name', 'the candidate')} for an interview for this role.
+
+ROLE: {item.get('title')} at {item.get('company') or 'the company'}
+POSTING:
+\"\"\"
+{(item.get('description') or '')[:3500]}
+\"\"\"
+RESUME:
+\"\"\"
+{load_resume_text()[:3000]}
+\"\"\"
+
+Give the 6 questions they are most likely to ask for THIS posting (mix technical and behavioural). Under each, one line
+starting "Answer with:" pointing to a real project or skill from the resume. If the resume has nothing relevant, say
+"Gap: ..." and what to read up on. Finish with one line: the single thing to prepare first.
+Plain text: number the questions "1." to "6.", blank line between them. Never invent experience. No emojis."""
+        text = llm.generate_text(prompt, system_instruction="You are a precise, honest interview coach.", temperature=0.3)
+        if text:
+            return text.strip()
+
+    skills = (item.get("skills") or [])[:4]
+    questions = [f"Walk me through something you built with {s}. What would you do differently now?" for s in skills]
+    questions += [
+        f"Why {item.get('company') or 'this company'}, and why this role?",
+        "Tell me about a bug that took you a long time to find. How did you find it?",
+        "How do you decide what to build first when a deadline is tight?",
+    ]
+    return ("Gemini isn't configured, so these are general questions built from the skills in the post, "
+            "not from your resume.\n\n" + "\n\n".join(f"{n}. {q}" for n, q in enumerate(questions[:6], 1)))
+
+
 def get_suggested_questions() -> List[str]:
     return [
         "Scan Reddit & Hacker News for new freelance leads",

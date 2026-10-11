@@ -7,6 +7,8 @@ Email: sent only from POST /api/outreach/send, i.e. on the user's click. Never f
 """
 
 import asyncio
+import csv
+import io
 import logging
 import re
 import uuid
@@ -15,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -28,8 +30,10 @@ from src.core.db import (
     get_top_leads,
     init_db,
     list_opportunities,
+    log_status,
     outreach_by_ref,
     outreach_for,
+    status_history,
     update_lead,
     update_lead_draft,
     update_lead_status,
@@ -37,14 +41,16 @@ from src.core.db import (
 )
 from src.core.llm import get_llm_client
 from src.opportunities import mailer
-from src.opportunities.normalize import detect_kind, find_email, is_remote
+from src.opportunities.normalize import canonical_skill, detect_kind, find_email, is_remote
 from src.opportunities.ranking import Query, learned_trust, parse_query, profile_query, rank
 from src.opportunities.refresh import is_running, lead_postings, refresh_sources
 from src.opportunities.sources import SOURCES
 from src.opportunities.state import load_state, now_iso, update_state
 from src.web.agent import (
     draft_application_note,
+    draft_follow_up,
     handle_lead_message,
+    interview_prep,
     handle_user_message,
     is_scan_request,
     load_profile_data,
@@ -214,6 +220,18 @@ def mark_watching(items: List[Dict[str, Any]]) -> None:
         it["watching"] = bool(it.get("company")) and _norm(it["company"]) in watched
 
 
+def mark_skill_gap(items: List[Dict[str, Any]]) -> None:
+    """missing_skills: known tech skills the post asks for that aren't in your profile."""
+    mine = {s.lower() for s in profile_query(load_profile_data()).skills}
+    for it in items:
+        gap = []
+        for raw in it.get("skills") or []:
+            skill = canonical_skill(raw)
+            if skill and skill.lower() not in mine and skill not in gap:
+                gap.append(skill)
+        it["missing_skills"] = gap[:6]
+
+
 def current_trust(opps: List[Dict[str, Any]]) -> Dict[str, float]:
     """Source trust learned from your own outcomes on feed postings and HN/Reddit leads."""
     leads = [{"source": l["source"], "status": l["status"]} for l in get_top_leads(limit=1000, min_score=0) if "sample_" not in (l.get("url") or "")]
@@ -365,6 +383,7 @@ def list_items():
     for it in items:
         it["outreach"] = sent.get(it["ref"], [])
     mark_watching(items)
+    mark_skill_gap(items)
     # Why the rest of the open postings aren't in the queue, so the briefing can say it plainly.
     queue_stats = {"open": len(open_new), "shown": len(ranked), "limit": QUEUE_SIZE, "min_score": QUEUE_MIN_SCORE,
                    "disabled_sources": len(open_new) - len(fresh), **filtered}
@@ -375,7 +394,9 @@ def list_items():
 def item_detail(ref: str):
     item = get_item(ref)
     item["outreach"] = outreach_for(ref)
+    item["timeline"] = status_history(ref)
     mark_watching([item])
+    mark_skill_gap([item])
     return item
 
 
@@ -384,8 +405,12 @@ def change_status(ref: str, status: str) -> bool:
     kind, _, raw_id = ref.partition(":")
     follow_up_at = follow_up_date() if status in WAITING_STATUSES else None
     if kind == "lead":
-        return update_lead_status(int(raw_id), status) and update_lead(int(raw_id), follow_up_at=follow_up_at)
-    return update_opportunity(int(raw_id), status=status, follow_up_at=follow_up_at)
+        ok = update_lead_status(int(raw_id), status) and update_lead(int(raw_id), follow_up_at=follow_up_at)
+    else:
+        ok = update_opportunity(int(raw_id), status=status, follow_up_at=follow_up_at)
+    if ok:
+        log_status(ref, status)
+    return ok
 
 
 @app.post("/api/items/{ref}/status")
@@ -443,6 +468,50 @@ def write_item_draft(ref: str):
     draft = draft_application_note(item)
     update_opportunity(int(ref.split(":")[1]), draft=draft)
     return {"draft": draft}
+
+
+@app.post("/api/items/{ref}/follow-up-draft")
+def write_follow_up(ref: str):
+    """A follow-up message for something you applied to. Shown for you to edit and send yourself."""
+    item = get_item(ref)
+    sent = [o for o in outreach_for(ref) if o["ok"]]
+    applied = [t for t in status_history(ref) if t["status"] in WAITING_STATUSES]
+    when = sent[0]["created_at"] if sent else (applied[-1]["created_at"] if applied else None)
+    return {"text": draft_follow_up(item, when)}
+
+
+@app.post("/api/items/{ref}/interview-prep")
+def write_interview_prep(ref: str):
+    return {"text": interview_prep(get_item(ref))}
+
+
+def _cell(value: Any) -> Any:
+    """Post text comes from strangers: stop spreadsheets from running a cell like '=HYPERLINK(...)' as a formula."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value if value is not None else ""
+
+
+@app.get("/api/export.csv")
+def export_csv():
+    """Everything you've acted on (sent, won, passed), with notes and email counts, as a spreadsheet."""
+    sent = outreach_by_ref()
+    rows = [lead_item(l) for l in get_top_leads(limit=100000, min_score=0) if l["status"] != "new"]
+    rows += [opp_item(o) for o in list_opportunities(active_only=False) if o["status"] != "new"]
+    buf = io.StringIO()
+    out = csv.writer(buf)
+    out.writerow(["type", "title", "company", "source", "status", "pay", "location", "url",
+                  "follow_up_at", "emails_sent", "last_email_at", "notes"])
+    for it in rows:
+        if it["is_sample"]:
+            continue
+        mails = [o for o in sent.get(it["ref"], []) if o["ok"]]
+        out.writerow([_cell(v) for v in (it["kind"], it["title"], it["company"], it["source_label"], it["status"],
+                      it["pay_text"], it["location"], it["url"], it["follow_up_at"] or "", len(mails),
+                      mails[0]["created_at"] if mails else "", it["notes"])])
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return Response(buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="sarthi-applications-{stamp}.csv"'})
 
 
 # ---------------------------------------------------------------- chat & search

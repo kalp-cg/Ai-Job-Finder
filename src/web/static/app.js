@@ -252,6 +252,8 @@ function briefing() {
 
   const notes = [];
   if (state.totalPostings) notes.push(`I'm tracking ${state.totalPostings.toLocaleString()} postings${s?.companies?.boards ? `, including ${s.companies.boards} company careers boards I check directly` : ''}.`);
+  const pipeline = pipelineNote(real);
+  if (pipeline) notes.push(pipeline);
   const why = queueStatsNote(state.queueStats);
   if (why) notes.push(why);
   for (const [key, r] of Object.entries(s?.runs || {})) {
@@ -264,6 +266,19 @@ function briefing() {
 
   const alertButtons = (s?.alerts || []).filter((a) => a.new_count);
   return { text: lines.join('\n\n'), notes, alertButtons };
+}
+
+/** Sent, replies and reply rate, so you can tell whether your applications are working. */
+function pipelineNote(real) {
+  const reached = new Set(['contacted', 'applied', 'replied', 'interviewing', 'offer', 'won', 'rejected', 'lost']);
+  const answered = new Set(['replied', 'interviewing', 'offer', 'won']);
+  const sent = real.filter((i) => reached.has(i.status));
+  if (!sent.length) return '';
+  const replies = sent.filter((i) => answered.has(i.status)).length;
+  const interviews = sent.filter((i) => ['interviewing', 'offer'].includes(i.status)).length;
+  const offers = sent.filter((i) => ['offer', 'won'].includes(i.status)).length;
+  return `Your pipeline: ${sent.length} sent, ${replies} ${replies === 1 ? 'reply' : 'replies'} (${Math.round((100 * replies) / sent.length)}%), ` +
+    `${interviews} ${interviews === 1 ? 'interview' : 'interviews'}, ${offers} ${offers === 1 ? 'offer or win' : 'offers or wins'}.`;
 }
 
 /** One plain sentence on why most open postings aren't in the queue. */
@@ -332,6 +347,7 @@ function itemCardHtml(i) {
         <h2 class="card-title">${escapeHtml(i.title)}</h2>
         ${i.company ? `<p class="card-company">${escapeHtml(i.company)}${watchHtml(i)}</p>` : ''}
         ${tech ? `<div class="chips">${tech}</div>` : ''}
+        ${i.missing_skills?.length ? `<p class="gap">Not in your profile yet: ${i.missing_skills.map(escapeHtml).join(', ')}</p>` : ''}
       </section>
       ${i.why ? `
       <section>
@@ -349,6 +365,7 @@ function itemCardHtml(i) {
       ${i.contact_email ? `<section id="email-section">${emailSectionHtml(i)}</section>` : ''}
       ${followUpSectionHtml(i)}
       ${sentLogHtml(i)}
+      ${timelineHtml(i)}
       <section>
         <span class="label">Your notes</span>
         <textarea class="draft notes" id="notes" spellcheck="true" placeholder="Who you spoke to, interview dates, what they said">${escapeHtml(i.notes || '')}</textarea>
@@ -436,6 +453,23 @@ function followUpSectionHtml(i) {
         <span class="mono small ${isDue(i) ? '' : 'muted'}">${text}</span>
         ${d ? '<button class="link-btn" onclick="saveFollowUp(\'\')">No reminder</button>' : ''}
       </div>
+      ${i.followUpDraft ? `
+        <textarea class="draft notes" id="follow-text" spellcheck="true">${escapeHtml(i.followUpDraft)}</textarea>
+        <div class="inline-actions"><button class="btn btn-quiet" onclick="copyFollowUp()"><i data-lucide="copy"></i>Copy follow-up</button></div>`
+      : `<div class="inline-actions"><button class="btn btn-quiet" id="btn-follow-draft" onclick="writeFollowUp()"><i data-lucide="pen-line"></i>Write a follow-up</button></div>`}
+    </section>`;
+}
+
+const STATUS_WORDS = { new: 'Back to New', contacted: 'Contacted', applied: 'Applied', replied: 'They replied', interviewing: 'Interviewing',
+  offer: 'Offer', won: 'Won', rejected: 'Rejected', lost: 'No luck', passed: 'Passed' };
+
+function timelineHtml(i) {
+  if (!i.timeline?.length) return '';
+  const steps = i.timeline.map((t) => `<span><b>${STATUS_WORDS[t.status] || escapeHtml(t.status)}</b> ${escapeHtml(formatDay(t.created_at))}</span>`);
+  return `
+    <section>
+      <span class="label">Timeline</span>
+      <div class="timeline mono small">${steps.join('<i data-lucide="chevron-right"></i>')}</div>
     </section>`;
 }
 
@@ -471,19 +505,20 @@ function actionsHtml(i) {
       : `<button class="btn btn-primary" onclick="copyAndOpen()"><i data-lucide="external-link"></i>${i.draft ? 'Copy & open' : 'Open'} on ${escapeHtml(i.source_label)}</button>`;
   const btn = (status, icon, label) =>
     `<button class="btn btn-quiet" onclick="setStatus('${status}')"><i data-lucide="${icon}"></i>${label}</button>`;
+  const prepBtn = `<button class="btn btn-quiet" onclick="prepInterview()"><i data-lucide="graduation-cap"></i>Prep for interview</button>`;
 
   if (i.type === 'lead') {
     switch (i.status) {
       case 'new': return primary + btn('contacted', 'check', 'Mark sent') + btn('lost', 'x', 'Pass');
       case 'contacted': return primary + btn('replied', 'message-square', 'They replied') + btn('lost', 'x', 'No luck');
-      case 'replied': return btn('won', 'trophy', 'Won it') + btn('lost', 'x', 'Lost it');
+      case 'replied': return prepBtn + btn('won', 'trophy', 'Won it') + btn('lost', 'x', 'Lost it');
       default: return btn('new', 'rotate-ccw', 'Move back to New');
     }
   }
   switch (i.status) {
     case 'new': return primary + btn('applied', 'check', 'Mark applied') + btn('passed', 'x', 'Pass');
     case 'applied': return btn('interviewing', 'message-square', 'Interviewing') + btn('rejected', 'x', 'Rejected');
-    case 'interviewing': return btn('offer', 'trophy', 'Got an offer') + btn('rejected', 'x', 'Rejected');
+    case 'interviewing': return prepBtn + btn('offer', 'trophy', 'Got an offer') + btn('rejected', 'x', 'Rejected');
     default: return btn('new', 'rotate-ccw', 'Move back to New');
   }
 }
@@ -532,9 +567,13 @@ function selectItem(ref) {
   closePage(false);
   state.selected = ref;
   history.replaceState(null, '', `#item=${ref}`);
-  if (!itemByRef(ref)) {
+  const known = itemByRef(ref);
+  if (!known) {
     // Deep link or search result not in the queue yet.
     api(`/api/items/${ref}`).then((it) => { state.extra[ref] = it; renderStage(); }).catch(() => showOverview());
+  } else if (!known.timeline) {
+    // The queue leaves out the timeline; fetch it once, then redraw only if you're still on this item.
+    refreshItem(known).then(() => { if (state.selected === ref && !state.page && known.timeline?.length) renderStage(); });
   }
   renderQueue();
   renderStage();
@@ -635,11 +674,48 @@ async function saveFollowUp(value) {
   }
 }
 
+async function writeFollowUp() {
+  const item = itemByRef(state.selected);
+  const btn = $('btn-follow-draft');
+  if (!item || !btn) return;
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="chakra spinning small"><use href="#chakra" /></svg>Writing a follow-up`;
+  try {
+    const res = await api(`/api/items/${item.ref}/follow-up-draft`, { method: 'POST' });
+    item.followUpDraft = res.text;
+    renderStage();
+    hint('Read it, then copy it into your email or their inbox.');
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = `Couldn't write it: ${err.message}`;
+  }
+}
+
+async function copyFollowUp() {
+  const text = $('follow-text')?.value || '';
+  if (text) await navigator.clipboard.writeText(text);
+  hint(text ? 'Copied' : 'Nothing to copy');
+}
+
+async function prepInterview() {
+  const item = itemByRef(state.selected);
+  if (!item) return;
+  const stop = showThinking(item.ref, 'Working out what they are likely to ask');
+  try {
+    const res = await api(`/api/items/${item.ref}/interview-prep`, { method: 'POST' });
+    stop();
+    pushMessage(item.ref, { role: 'ai', text: res.text });
+  } catch (err) {
+    stop();
+    pushMessage(item.ref, { role: 'ai', text: `I couldn't prepare that: ${err.message}` });
+  }
+}
+
 /** Pull fields the server sets on its own (follow-up date, send log) after a status change or send. */
 async function refreshItem(item) {
   try {
     const fresh = await api(`/api/items/${item.ref}`);
-    Object.assign(item, { status: fresh.status, tab: fresh.tab, follow_up_at: fresh.follow_up_at, outreach: fresh.outreach });
+    Object.assign(item, { status: fresh.status, tab: fresh.tab, follow_up_at: fresh.follow_up_at, outreach: fresh.outreach, timeline: fresh.timeline });
   } catch {
     // Keep the local copy; the next queue load corrects it.
   }
@@ -1062,8 +1138,53 @@ async function renderCompanies() {
         <span class="mono small ${c.last_matches ? '' : 'muted'}">${c.ats && c.last_open_roles !== null ? `${c.last_matches ?? 0} saved / ${c.last_open_roles} open` : ''}</span>
         <span class="mono small muted">${c.next_check_at && c.ats ? `next ${dueIn(c.next_check_at)}` : ''}</span>
         ${c.origin === 'user' ? `<button class="link-btn" onclick="removeCompany(${c.id})" title="Stop watching"><i data-lucide="x"></i></button>` : '<span></span>'}
-      </div>`).join('')}</div>`;
+      </div>`).join('')}</div>
+    ${missingBoardsHtml(data.companies)}`;
   refreshIcons();
+}
+
+/** Companies whose careers board SARTHI couldn't find. Pasting the right URL usually fixes it. */
+function missingBoardsHtml(companies) {
+  const withBoard = new Set(companies.filter((c) => c.ats).map((c) => c.name.toLowerCase()));
+  const seen = new Set();
+  const missing = companies.filter((c) => {
+    const key = c.name.toLowerCase();
+    if (c.discovery_state !== 'not_found' || withBoard.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  if (!missing.length) return '';
+  return `
+    <details class="missing-boards">
+      <summary>${missing.length} companies without a public board. Paste a careers page to fix one.</summary>
+      <div class="company-list">${missing.map((c, n) => `
+        <form class="company-row fix-row" onsubmit="fixCompany(event, ${n})" data-name="${escapeAttr(c.name)}">
+          <span class="company-name">${escapeHtml(c.name)}</span>
+          <input id="fix-${n}" placeholder="${escapeAttr(c.website || 'Careers page URL')}" value="">
+          <button class="btn btn-ghost" type="submit">Check</button>
+          <span class="mono small muted" id="fix-status-${n}"></span>
+        </form>`).join('')}</div>
+    </details>`;
+}
+
+async function fixCompany(e, n) {
+  e.preventDefault();
+  const name = e.target.dataset.name;
+  const website = $(`fix-${n}`).value.trim() || $(`fix-${n}`).placeholder;
+  if (!/^https?:\/\/|\./.test(website)) {
+    $(`fix-status-${n}`).textContent = 'Paste a URL first';
+    return;
+  }
+  $(`fix-status-${n}`).textContent = 'Checking...';
+  try {
+    const res = await api('/api/companies', { method: 'POST', body: JSON.stringify({ name, website }) });
+    $(`fix-status-${n}`).textContent = '';
+    $('c-status').textContent = res.reply.replace(/\*\*/g, '');
+    await loadItems();
+    renderQueue();
+  } catch (err) {
+    $(`fix-status-${n}`).textContent = `Couldn't check: ${err.message}`;
+  }
 }
 
 async function addCompany(e) {
@@ -1306,6 +1427,11 @@ function startOfDay(d) {
 
 function localDateValue(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDay(iso) {
+  const d = parseDate(iso);
+  return d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
 }
 
 function formatWhen(iso) {
