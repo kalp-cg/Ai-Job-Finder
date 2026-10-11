@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from src.core.db import get_top_leads, init_db, list_opportunities, mark_unlisted_inactive, upsert_opportunities
 from src.opportunities.normalize import dedupe_key, detect_kind, extract_skills, is_remote
 from src.opportunities.ranking import parse_query, rank
-from src.opportunities.sources import SOURCES
+from src.opportunities.sources import SOURCES, plain_error
 from src.opportunities.state import load_state, now_iso, record_run, update_state
 
 logger = logging.getLogger("sarthi.refresh")
@@ -66,8 +66,8 @@ def refresh_sources(manual: bool = False, only: Optional[List[str]] = None) -> O
                 logger.info(f"{key}: {len(items)} fetched, {new} new")
             except Exception as e:
                 logger.error(f"{key} failed: {e}")
-                record_run(key, False, error=str(e)[:300])
-                report["sources"][key] = {"error": str(e)[:300]}
+                record_run(key, False, error=plain_error(e))
+                report["sources"][key] = {"error": plain_error(e)}
         if "companies" not in disabled:
             from src.opportunities.companies import crawl_companies
             from src.web.agent import load_profile_data
@@ -79,8 +79,8 @@ def refresh_sources(manual: bool = False, only: Optional[List[str]] = None) -> O
                 report["new"] += crawl["new"]
             except Exception as e:
                 logger.error(f"company crawl failed: {e}")
-                record_run("companies", False, error=str(e)[:300])
-                report["sources"]["companies"] = {"error": str(e)[:300]}
+                record_run("companies", False, error=plain_error(e))
+                report["sources"]["companies"] = {"error": plain_error(e)}
         report["finished_at"] = now_iso()
         update_alerts()
         return report

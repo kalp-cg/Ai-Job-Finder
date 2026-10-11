@@ -177,3 +177,16 @@ class ScanTest(TempDataCase):
         item = self.client.get(f"/api/items/opp:{opp_id}").json()
         self.assertEqual(item["source_label"], "LinkedIn")
         self.assertEqual(item["company"], "Razorpay")
+
+
+class PlainErrorTest(unittest.TestCase):
+    def test_network_errors_read_as_one_sentence(self):
+        import requests
+        from src.opportunities.sources import plain_error
+        dns = requests.exceptions.ConnectionError("HTTPSConnectionPool(host='x'): Max retries (NameResolutionError: Failed to resolve 'x')")
+        self.assertTrue(plain_error(dns).startswith("couldn't connect: no internet"))
+        self.assertIn("too long", plain_error(requests.exceptions.ReadTimeout("Read timed out")))
+        resp = requests.Response()
+        resp.status_code = 503
+        self.assertIn("HTTP 503", plain_error(requests.exceptions.HTTPError(response=resp)))
+        self.assertEqual(plain_error(ValueError("bad data")), "bad data")

@@ -109,7 +109,8 @@ class HackerNewsSource:
                         continue
                     candidates.append((self._relevance(text_lower, skills), hit, text))
             except Exception as e:
-                self.last_error = str(e)
+                from src.opportunities.sources import plain_error
+                self.last_error = plain_error(e)
                 logger.error(f"Error reading HN thread '{title_prefix}': {e}")
 
         candidates.sort(key=lambda c: c[0], reverse=True)

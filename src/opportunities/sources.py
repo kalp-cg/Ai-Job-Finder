@@ -23,6 +23,20 @@ HEADERS = {"User-Agent": "SARTHI/1.0 (personal job search assistant; low-frequen
 TIMEOUT = 25
 
 
+def plain_error(e: Exception) -> str:
+    """One short sentence for the UI instead of a raw exception dump."""
+    text = str(e)
+    if isinstance(e, requests.exceptions.ConnectionError):
+        if "resolve" in text or "NameResolution" in text:
+            return "couldn't connect: no internet, or the address lookup (DNS) failed. It will retry on the next scan."
+        return "couldn't connect to the site. It will retry on the next scan."
+    if isinstance(e, requests.exceptions.Timeout):
+        return "the site took too long to answer. It will retry on the next scan."
+    if isinstance(e, requests.exceptions.HTTPError) and e.response is not None:
+        return f"the site answered with an error (HTTP {e.response.status_code}). It will retry on the next scan."
+    return text[:300]
+
+
 def _get(url: str, params: Optional[Dict[str, Any]] = None) -> Any:
     resp = requests.get(url, params=params, headers=HEADERS, timeout=TIMEOUT)
     resp.raise_for_status()
