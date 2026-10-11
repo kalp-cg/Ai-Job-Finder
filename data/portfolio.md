@@ -1,15 +1,38 @@
 # Freelance Portfolio & Case Studies
 
-### Case Study A: Adversarial Test Suite for Frontier LLM Agents
-- **Problem:** Frontier AI models required rigorous testing to uncover edge-case failures, safety risks, and behavioral vulnerabilities before deployment.
-- **Solution:** Architected automated, adversarial benchmarking frameworks using Python to systematically evaluate agentic capabilities and safety boundaries.
-- **Outcome:** Identified critical edge-case vulnerabilities, accelerating model alignment and safe deployment cycles for complex LLM agents.
-- **Relevant Link:** https://github.com/kalppatel
-- **Keywords:** Python, LLM Agent Benchmarking, AI Evaluation, Adversarial Testing
+Facts only, taken from the resume. No invented metrics or clients.
 
-### Case Study B: Scalable Full-Stack SaaS Application Architecture
-- **Problem:** The project required a modern, highly responsive frontend coupled with a high-throughput, containerized backend capable of executing complex relational queries.
-- **Solution:** Built an end-to-end full-stack SaaS solution utilizing Next.js and TypeScript on the frontend, FastAPI and PostgreSQL on the backend, fully containerized with Docker.
-- **Outcome:** Achieved fast page load times, sub-second API response rates, and seamless deployment across development and production environments.
-- **Relevant Link:** https://github.com/kalppatel
-- **Keywords:** Next.js, FastAPI, PostgreSQL, TypeScript, Docker
+### Case Study A: Adversarial evaluation environments for frontier AI agents (Ambiguity Labs)
+- **Problem:** Autonomous agents (GPT-5, Claude Opus) needed hard, multi-step tasks that expose hallucinated or fabricated answers.
+- **Solution:** Designed multi-stage evaluation environments (25+ reasoning steps) in applied math, chemistry and computational biology, with pytest suites using ground-truth noise bounds, holdout validation and physical consistency checks, run in pinned Docker environments via Harbor CLI / AutoEval.
+- **Outcome:** Tasks calibrated to the Frontier tier, under 25% agent pass rate.
+- **Relevant Link:** https://github.com/kalp-cg
+- **Keywords:** Python, pytest, Docker, LLM Agent Benchmarking, AI Evaluation
+
+### Case Study B: PGRadar, multi-role PG & hostel management SaaS
+- **Problem:** Students, owners, service providers and admins need one platform for booking, payments and operations.
+- **Solution:** Built four portals in React + TypeScript with a Node.js / Express / MongoDB backend: JWT auth, Razorpay payments, Cloudinary media, OTP verification, PDF receipts, PWA.
+- **Outcome:** Live in production at https://pgradar.com; ongoing freelance feature work.
+- **Relevant Link:** https://github.com/kalp-cg/PgRadar
+- **Keywords:** React, TypeScript, Node.js, Express.js, MongoDB, Razorpay
+
+### Case Study C: DhanPath AI, offline-first family finance platform
+- **Problem:** Families want budgeting and spend tracking without typing every transaction.
+- **Solution:** Flutter mobile app that parses SMS transactions offline, plus a Next.js dashboard with subscriptions, payment automation (Stripe, Razorpay), webhook verification and audit reporting.
+- **Outcome:** Live at https://dhan-path-ai.vercel.app with a demo video.
+- **Relevant Link:** https://github.com/kalp-cg/DhanPath-Ai
+- **Keywords:** Flutter, Next.js, TypeScript, SQLite, Stripe
+
+### Case Study D: TransitOps, public transit operations on Odoo
+- **Problem:** Transit operators juggle routes, fleet, maintenance, ticketing and passengers across separate tools.
+- **Solution:** Custom Odoo modules with automated workflows, dashboards and analytics on Python and PostgreSQL.
+- **Outcome:** Live at https://transit-ops-odoo.vercel.app/.
+- **Relevant Link:** https://github.com/kalp-cg/TransitOps-odoo
+- **Keywords:** Odoo, Python, PostgreSQL
+
+### Case Study E: StockMaster, inventory management
+- **Problem:** Small businesses need product, supplier and stock tracking with early warning on low stock.
+- **Solution:** React + Node.js / Express + MongoDB app with REST APIs, search, filtering, dashboards and low-stock alerts.
+- **Outcome:** Working app with a demo video (https://youtu.be/imuaZmrqoE8).
+- **Relevant Link:** https://github.com/kalp-cg/stockMaster
+- **Keywords:** React, Node.js, Express.js, MongoDB

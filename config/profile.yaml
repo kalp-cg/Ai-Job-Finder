@@ -1,26 +1,42 @@
 name: Kalp Patel
-title: Full-Stack & AI Benchmark Engineer
-github: https://github.com/kalppatel
+title: Full-Stack Developer & AI Benchmark Engineering Intern
+github: https://github.com/kalp-cg
 linkedin: https://www.linkedin.com/in/kalp-patel-/
+portfolio: https://kalppatel.me
 hourly_rate_usd: 35
 minimum_project_budget_usd: 250
 stipend_minimum_monthly_usd: 500
 skills:
   primary:
   - Python
-  - FastAPI
+  - JavaScript
   - TypeScript
-  - Next.js
   - React.js
+  - Next.js
   - Node.js
+  - Express.js
+  - FastAPI
   - PostgreSQL
+  - MongoDB
+  mobile:
+  - Flutter
+  - Dart
   ai_and_ml:
   - LLM Agent Benchmarking
-  - Adversarial Test Suites
   - Frontier AI Evaluation
+  - Adversarial Test Design
+  - Pytest
+  - NumPy
+  - SciPy
   infrastructure:
   - Docker
-  - Containerized Environments
+  - AWS
+  - Redis
+  - MySQL
+  - Linux
+  - Git
+  - WebSockets
+  - Tailwind CSS
 preferences:
   roles:
   - Full-Stack Developer
