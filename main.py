@@ -321,6 +321,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="Job + Freelance Assistant: Automated Discovery & Draft Preparation"
     )
+    parser.add_argument(
+        "--mode",
+        choices=["web", "chat", "run", "leads", "jobs", "digest", "track"],
+        help="Command mode to run (alternative to subcommand)",
+    )
+    parser.add_argument("--port", type=int, default=8000, help="Web server port (default 8000)")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host IP")
+
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     # Command: web (Claude browser app)
@@ -365,29 +373,31 @@ def main():
     # Always ensure DB is initialized
     init_db()
 
-    if args.command == "web":
+    command = args.command or args.mode
+
+    if command == "web":
         start_web_server(host=args.host, port=args.port)
 
-    elif args.command == "chat":
+    elif command == "chat":
         start_interactive_chat()
 
-    elif args.command in (None, "run"):
+    elif command in (None, "run"):
         use_sample = getattr(args, "sample", False)
         process_leads(use_sample=use_sample)
         refresh_feeds() if not use_sample else process_jobs(use_sample=True)
         show_digest()
 
-    elif args.command == "leads":
+    elif command == "leads":
         process_leads(use_sample=args.sample, limit_per_source=args.limit)
         show_digest()
 
-    elif args.command == "jobs":
+    elif command == "jobs":
         refresh_feeds() if not args.sample else process_jobs(use_sample=True)
 
-    elif args.command == "digest":
+    elif command == "digest":
         show_digest(limit=args.limit)
 
-    elif args.command == "track":
+    elif command == "track":
         if args.lead_id and args.status:
             success = update_lead_status(args.lead_id, args.status, notes=args.notes)
             if success:
